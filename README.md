@@ -1,0 +1,63 @@
+# Smart AI（明白办）
+
+面向老年人、残障人士和低数字素养人群的无障碍公共服务办理引导平台。首期范围为城乡居民医保、高校学生资助、老年与残障人士公共服务材料办理。
+
+## 当前阶段
+
+第一阶段完成基础工程与主要目录框架：Next.js App Router、TypeScript、首页与路由骨架、AI/RAG/隐私安全模块契约、Prisma 数据模型、环境变量模板和 PostgreSQL/pgvector Compose 服务。当前不连接真实模型、不存储真实个人材料、不提供未经核实的政策结论。
+
+## 本地启动
+
+需要 Node.js 20.9 或更高版本、npm，以及 Docker（仅在需要本地数据库时）。
+
+```bash
+npm install
+Copy-Item .env.example .env
+npm run dev
+```
+
+访问 `http://localhost:3000`。数据库可选启动：
+
+```bash
+docker compose up -d postgres
+npm run db:generate
+npm run db:push
+```
+
+首次接入真实 AI 或存储前，请先配置 `.env`；不要将密钥、真实证件或上传文件提交到仓库。
+
+## 主要路由
+
+- `/` 产品首页与任务入口
+- `/onboarding` 无障碍偏好入口
+- `/task/new` 创建任务
+- `/task/[id]` 任务工作台
+- `/documents` 材料检查
+- `/result/[id]` 办理指南
+- `/family/[id]` 家属协助模式
+- `/admin/policies` 政策资料管理入口
+- `/demo` 虚拟演示入口
+
+## 目录概览
+
+```text
+app/                 页面与 API 路由
+components/          可复用界面组件
+lib/ai/              结构化分析、提示词、Agent 状态流
+lib/rag/             政策证据类型与检索入口
+lib/security/        PII 脱敏、风险规则、审计辅助
+prisma/              业务数据模型
+scripts/             数据导入和演示数据脚本入口
+tests/               自动化测试
+```
+
+## 开发约束
+
+- 只用虚拟人物做演示，不上传真实证件。
+- 政策回答必须绑定可验证来源；无证据时不下结论。
+- 医疗、费用、资格权益和正式提交必须经过人工确认。
+- `main` 只合并经过检查的功能分支；提交使用 `feat:`、`fix:`、`docs:` 等前缀。
+
+## 下一阶段建议
+
+完成任务工作台交互、匿名任务 API 和可配置事项模板；随后接入带来源与有效期元数据的政策数据、检索评测集和 SSE 对话。OCR、语音及正式存储应在隐私策略确定后分阶段接入。
