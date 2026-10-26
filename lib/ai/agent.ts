@@ -16,6 +16,18 @@ export type AgentContext = {
 
 export type AgentDecision = { state: AgentState; terminal: boolean };
 
+export function classifyService(message: string): AgentContext & { serviceType: string } {
+  const serviceType = /助学|学生|资助/.test(message)
+    ? "student_aid"
+    : /残障|残疾|老人|老年|行动不便/.test(message)
+      ? "elderly_disability_service"
+      : /医保|医疗|参保|缴费/.test(message)
+        ? "medical_insurance"
+        : "unknown";
+  const missingFields = serviceType === "unknown" ? ["具体想办理的事项"] : ["所在省、市、区"];
+  return { serviceType, missingFields, hasPolicyEvidence: false, requiresConfirmation: serviceType !== "unknown" };
+}
+
 export function nextAgentState(state: AgentState, context: AgentContext): AgentDecision {
   switch (state) {
     case "UNDERSTAND":
