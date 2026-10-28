@@ -1,0 +1,41 @@
+name: Validate demo
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t smart-ai:ci .
+      - run: |
+          docker run -d --name smart-ai --publish 127.0.0.1:3000:3000 smart-ai:ci
+          for i in $(seq 1 30); do
+            if curl --fail http://127.0.0.1:3000/api/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs smart-ai
+          exit 1

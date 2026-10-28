@@ -1,6 +1,7 @@
 export type PolicyEvidence = {
   policyId: string;
   title: string;
+  serviceType: string;
   region: string | null;
   effectiveAt: string | null;
   expiredAt: string | null;

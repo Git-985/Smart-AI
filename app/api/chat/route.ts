@@ -1,22 +1,65 @@
 import { NextResponse } from "next/server";
-import { getDemoTask, updateDemoTask } from "@/lib/demo-data";
+import { chatRequestSchema } from "@/lib/api/schemas";
+import { ownedTask, inferServiceType, riskForServiceType, updateDemoTask } from "@/lib/demo-data";
+import { requestSession } from "@/lib/security/session";
 import { searchPolicies } from "@/lib/rag/retriever";
+import { recordAuditEvent } from "@/lib/security/audit";
+import { maskSensitiveText } from "@/lib/security/pii";
 
 export async function POST(request: Request) {
-  const body = await request.json() as { taskId?: string; region?: string; year?: string };
-  if (!body.taskId) return NextResponse.json({ error: "TASK_ID_REQUIRED" }, { status: 400 });
-  const task = getDemoTask(body.taskId);
+  const body: unknown = await request.json().catch(() => null);
+  const parsed = chatRequestSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "INVALID_CHAT_INPUT" }, { status: 400 });
+  const { taskId, clarification } = parsed.data;
+  const task = ownedTask(taskId, requestSession(request));
   if (!task) return NextResponse.json({ error: "TASK_NOT_FOUND" }, { status: 404 });
-  const missingFields = [!body.region ? "所在省、市、区" : "", !body.year ? "办理年份" : ""].filter(Boolean);
-  const evidence = missingFields.length ? [] : await searchPolicies(task.message, { region: body.region, serviceType: task.serviceType, asOf: new Date(`${body.year}-12-31`) });
+  const region = parsed.data.region ?? task.region;
+  const year = parsed.data.year ?? task.year;
+  const safeClarification = clarification ? maskSensitiveText(clarification) : "";
+  const message = safeClarification ? `${task.message} ${safeClarification}` : task.message;
+  if (message.length > 6000) return NextResponse.json({ message: "补充内容过长，请重新创建任务。" }, { status: 400 });
+  const serviceType = task.serviceType === "unknown" ? inferServiceType(message) : task.serviceType;
+  const missingFields = serviceType === "unknown"
+    ? ["具体想办理的事项"]
+    : [
+        !region ? "所在省、市、区" : "",
+        serviceType === "medical_insurance" && !year ? "办理年份" : "",
+      ].filter(Boolean);
+  const evidence = missingFields.length
+    ? []
+    : await searchPolicies(message, {
+        region,
+        serviceType,
+        asOf: year ? new Date(`${year}-12-31`) : new Date(),
+      });
   const updated = updateDemoTask(task.id, {
+    message,
+    serviceType,
+    riskLevel: riskForServiceType(serviceType),
+    title: serviceType === "medical_insurance" ? "居民医保办理咨询" : serviceType === "student_aid" ? "高校学生资助咨询" : serviceType === "elderly_disability_service" ? "老年与残障服务咨询" : "请补充办理事项",
+    knownFacts: [message],
     missingFields,
     evidence,
+    region: region ?? task.region,
+    year: year ?? task.year,
+    userConfirmed: false,
     status: missingFields.length ? "CLARIFYING" : "WAITING_CONFIRMATION",
     plan: missingFields.length ? [] : ["确认当地官方办理渠道", "核对材料是否齐全", "在人工确认后再进行正式办理"],
   });
+  if (!missingFields.length) {
+    recordAuditEvent({
+      taskId: task.id,
+      eventType: evidence.length ? "POLICY_USED" : "NO_EVIDENCE",
+      metadata: { riskLevel: riskForServiceType(serviceType) },
+      createdAt: new Date(),
+    });
+  }
   return NextResponse.json({
     task: updated,
-    message: missingFields.length ? `还需要确认：${missingFields.join("、")}` : "已完成演示检索。请先阅读证据和风险提示，再决定下一步。",
+    message: missingFields.length
+      ? `还需要确认：${missingFields.join("、")}`
+      : evidence.length
+        ? "已完成演示检索。以下材料是虚构数据，请先阅读风险提示。"
+        : "没有找到适用的政策证据，因此不提供确定性结论。",
   });
 }

@@ -23,4 +23,10 @@ describe("stage 3-5 demo flow", () => {
       requiresConfirmation: true,
     })).toEqual({ state: "CLARIFY", terminal: true });
   });
+
+  it("does not assume an unrecognized request is about medical insurance", () => {
+    const task = createDemoTask({ message: "我有一件事情想咨询" });
+    expect(task.serviceType).toBe("unknown");
+    expect(task.missingFields).toContain("具体想办理的事项");
+  });
 });

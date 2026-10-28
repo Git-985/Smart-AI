@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { FamilyAssist } from "@/components/family-assist";
+import { cookies } from "next/headers";
+import { ownedTask } from "@/lib/demo-data";
+import { sessionCookie } from "@/lib/security/session";
 
 export default async function FamilyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <main className="main"><Link href="/">← 返回首页</Link><section className="compose" style={{ marginTop: 28 }}><span className="eyebrow">家属协助模式</span><h1 style={{ fontSize: 30 }}>协助办理</h1><p>任务编号：{id}</p><p className="intro-copy">这里将提供简明步骤与家属协助清单。</p></section></main>;
+  if (!ownedTask(id, (await cookies()).get(sessionCookie)?.value)) {
+    return <main className="main"><h1>任务不可用</h1><Link href="/task/new">重新创建任务</Link></main>;
+  }
+  return <main className="main"><Link href="/">← 返回首页</Link><FamilyAssist taskId={id} /></main>;
 }

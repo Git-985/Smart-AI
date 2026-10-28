@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
+import { policySearchSchema } from "@/lib/api/schemas";
 import { searchPolicies } from "@/lib/rag/retriever";
 
 export async function POST(request: Request) {
-  const body = await request.json() as { query?: string; region?: string; serviceType?: string; year?: string };
-  const items = await searchPolicies(body.query ?? "", {
-    region: body.region,
-    serviceType: body.serviceType,
-    asOf: body.year ? new Date(`${body.year}-12-31`) : new Date(),
+  const body: unknown = await request.json().catch(() => null);
+  const parsed = policySearchSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "INVALID_POLICY_SEARCH" }, { status: 400 });
+  const items = await searchPolicies(parsed.data.query, {
+    region: parsed.data.region,
+    serviceType: parsed.data.serviceType,
+    asOf: new Date(`${parsed.data.year}-12-31`),
   });
   return NextResponse.json({
     items,

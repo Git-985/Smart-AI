@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, AudioLines, Paperclip } from "lucide-react";
+import { maskSensitiveText } from "@/lib/security/pii";
 
 export function StartTask() {
   const [message, setMessage] = useState("");
@@ -15,7 +16,8 @@ export function StartTask() {
       setNotice("请先描述您想办理的事情。");
       return;
     }
-    sessionStorage.setItem("smart-ai:initial-message", text);
+    try { sessionStorage.setItem("smart-ai:initial-message", maskSensitiveText(text)); }
+    catch { setNotice("浏览器禁止保存输入，请在下一页重新描述。"); }
     router.push("/task/new");
   }
 
