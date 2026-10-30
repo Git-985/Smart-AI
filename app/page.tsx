@@ -45,7 +45,7 @@ export default function HomePage() {
         <section aria-labelledby="services-title">
           <div className="section-heading">
             <h2 id="services-title">选择您要了解的事项</h2>
-            <span>首期支持 3 类公共服务</span>
+            <span>支持 3 类公共服务</span>
           </div>
           <div className="service-grid">
             {services.map(({ title, description, icon: Icon, tone }) => (

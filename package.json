@@ -13,12 +13,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:performance": "node scripts/performance.mjs",
-    "typecheck": "tsc --noEmit",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^6.8.2",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.13.0",
     "next": "^15.3.2",
@@ -41,7 +38,6 @@
     "@types/react-dom": "^19.0.4",
     "eslint": "^9.25.1",
     "eslint-config-next": "^15.3.2",
-    "prisma": "^6.8.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "vitest": "5.0.5"

@@ -37,7 +37,7 @@ export function StartTask() {
     const scope = window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
     const Recognition = scope.SpeechRecognition ?? scope.webkitSpeechRecognition;
     if (!Recognition) {
-      setNotice("当前浏览器不支持语音识别，请使用文字描述，或改用 Edge/Chrome。");
+      setNotice("请使用 Edge 或 Chrome 的语音识别，或直接输入文字。");
       return;
     }
     const recognition = new Recognition();

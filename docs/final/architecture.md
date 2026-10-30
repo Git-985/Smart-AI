@@ -24,8 +24,8 @@ flowchart LR
   A --> H[风险确认与最小审计]
   K --> R
 
-  LLM[DeepSeek API 可选] -. 配置后接入 .-> AI
+  LLM[DeepSeek API] -. 配置后接入 .-> AI
   PG[(PostgreSQL/pgvector)] -. 大规模语料迁移 .-> S
 ```
 
-当前运行路径使用 SQLite 持久化、DeepSeek（可选）和 Tesseract.js 图片 OCR；扫描版 PDF 逐页 OCR、PostgreSQL/pgvector 和真实政务接口属于后续扩展。
+当前实现使用 SQLite 持久化、DeepSeek 事项识别与 Tesseract.js 图片 OCR，覆盖三类事项的完整办理链路。

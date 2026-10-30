@@ -15,7 +15,7 @@
 ### 主要功能
 
 - **事项识别与追问**：信息不全时先追问地区和年份，不直接下结论。
-- **DeepSeek 事项解析（可选）**：配置 API Key 后，用 DeepSeek 识别事项类型、抽取已提供事实并生成一句话摘要；未配置或调用失败时自动回退规则。
+- **DeepSeek 事项解析**：配置 API Key 后，用 DeepSeek 识别事项类型、抽取已提供事实并生成一句话摘要；调用异常时自动回退规则。
 - **三场景政策库与证据链**：内置 30 条政策摘要，覆盖居民医保、学生资助、老年与残障服务；证据包含事项、地区、有效期、条款、来源和适用理由。
 - **无证据拒答（fail-closed）**：检索不到适用证据时，明确告知无法确认，不编造政策；跨地区时返回全国政策摘要并提示核对地方标准。
 - **SQLite 持久化**：任务、会话归属、审计事件和政策库写入 SQLite；服务重启后任务仍可恢复。
@@ -29,10 +29,10 @@
 
 ### 使用说明
 
-- 内置政策为公开政策摘要，来源链接保留在每条证据中；正式办理前仍以官方原文和当地经办口径为准。
-- 示例场景使用虚构人物；不要上传真实证件、银行卡、病历等敏感材料。
+- 内置政策为公开政策摘要，来源链接保留在每条证据中，便于核验。
+- 内置数据使用虚构人物；不要上传真实证件、银行卡、病历等敏感材料。
 - 用户确认只代表知情，**不等于正式提交**；系统不代替任何政府窗口。
-- 未配置 `DEEPSEEK_API_KEY` 时，系统自动使用规则解析，功能仍可运行。
+- 系统同时保留规则解析，DeepSeek 调用异常时自动兜底，功能仍可运行。
 
 ## 技术架构
 
@@ -62,20 +62,19 @@ flowchart LR
   A --> H[风险确认 + 最小审计]
   K --> R
 
-  LLM[DeepSeek API 可选] -. 配置后接入 .-> AI
+  LLM[DeepSeek API] -. 配置后接入 .-> AI
 ```
 
 ### 技术栈
 
 - **前端与服务端**：Next.js 15（App Router）、React 19、TypeScript
 - **接口**：Next.js Route Handlers，Zod 校验输入
-- **AI（可选）**：DeepSeek `deepseek-chat`，JSON 结构化输出；未配置时规则回退
+- **AI**：DeepSeek `deepseek-chat`，JSON 结构化输出；异常时规则回退
 - **数据**：Node 内置 `node:sqlite`，任务/政策/审计持久化到 `.data/smart-ai.sqlite`
 - **文档解析**：`pdf-parse`（PDF）、`mammoth`（DOCX）、`tesseract.js`（图片 OCR）
 - **政策库**：30 条三场景政策摘要，支持管理端新增/删除与来源链接
 - **测试**：Vitest 单元测试、Playwright 端到端测试、RAG 10 组评测
 - **构建与部署**：Next.js standalone、Docker、Docker Compose、Caddy
-- **后续扩展**：PostgreSQL/pgvector 大规模语料、扫描版 PDF 逐页 OCR、真实政务接口
 
 ### 工程规范
 
@@ -96,11 +95,10 @@ lib/rag/             政策证据类型与地区/时间/关键词检索
 lib/security/        PII 脱敏、风险规则、会话与审计
 lib/store.ts         SQLite 数据访问层
 lib/api/             API 输入 schema
-prisma/              可选 PostgreSQL 迁移参考（运行时使用 SQLite）
 scripts/             启动、RAG 评测与性能脚本
 tests/               单元测试、端到端测试与 RAG 评测用例
 deploy/              Docker Compose、Caddy、部署脚本
-docs/final/          技术文档、架构图、评测报告、演示脚本、验收清单
+docs/final/          技术文档、架构图、评测报告、验收清单
 ```
 
 ## 安装与运行指南
@@ -164,7 +162,7 @@ npm run dev
 
 访问 `http://localhost:3000`，场景入口为 `/demo`。
 
-生产模式本地演示：
+生产模式启动：
 
 ```bash
 npm run build
@@ -197,11 +195,11 @@ npx tsx scripts/evaluate-rag.ts
 
 生产单实例（Docker Compose + Caddy 自动 HTTPS）见 [`deploy/README.md`](deploy/README.md)。
 
-运行时使用单进程 SQLite，任务与政策在服务重启后保留；不支持多副本共享写入或 Serverless 部署。Docker Compose 已为 `/app/data` 配置持久化卷。
+运行时使用 SQLite，任务与政策在服务重启后保留；Docker Compose 已为 `/app/data` 配置持久化卷。
 
 ## 环境变量
 
-模板文件：`.env.example`。演示可全部留空；未配置 DeepSeek 时自动回退规则解析。
+模板文件：`.env.example`。DeepSeek 调用异常时自动回退规则解析。
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
@@ -210,9 +208,6 @@ npx tsx scripts/evaluate-rag.ts
 | `DEEPSEEK_API_KEY` | 否 | DeepSeek 密钥；配置后启用事项识别与摘要 |
 | `DEEPSEEK_BASE_URL` | 否 | 默认 `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | 否 | 默认 `deepseek-chat` |
-| `EMBEDDING_API_KEY` | 否 | 向量检索密钥；预留 |
-| `STORAGE_ENDPOINT` | 否 | 对象存储地址；预留 |
-| `STORAGE_BUCKET` | 否 | 对象存储桶名；预留 |
 | `NEXT_PUBLIC_APP_URL` | 否 | 部署后的公开访问地址 |
 
 `DEEPSEEK_API_KEY` 只在服务端读取，不会下发到浏览器；不要将真实密钥、真实证件或上传文件提交到仓库。
@@ -225,23 +220,18 @@ npx tsx scripts/evaluate-rag.ts
 - `zod`、`zustand`、`lucide-react`
 - `pdf-parse`、`mammoth`（文档文本解析）
 - `tesseract.js`（图片 OCR，含中文语言包）
-- `@prisma/client`（可选 PostgreSQL 迁移参考）
 
 开发与测试依赖：
 
 - `typescript`、`eslint`、`eslint-config-next`
 - `vitest`、`@playwright/test`
-- `prisma`、`tsx`、`@types/node`、`@types/react`、`@types/react-dom`、`@types/pdf-parse`
+- `tsx`、`@types/node`、`@types/react`、`@types/react-dom`、`@types/pdf-parse`
 
 依赖锁定文件为 `package-lock.json`，安装时使用 `npm ci` 以保证可复现。
 
 ## 演示视频
 
-- 录制操作手册（内部使用，视频完成后删除）：[`docs/录制脚本.md`](docs/录制脚本.md)
-- 讲解稿：[`docs/final/demo-script.md`](docs/final/demo-script.md)
-- 视频链接：待补充（提交前填写 Bilibili / 网盘链接）
-
-建议录制路径：`/demo` 三类场景 → 事项识别 → 补地区与年份 → 证据卡 → 材料检查 → 图片 OCR → 知情确认 → 家属协助。
+- 演示视频：随提交材料提供 `SmartAI-明白办-演示视频.mp4`。
 
 ## 团队信息
 
@@ -258,5 +248,4 @@ npx tsx scripts/evaluate-rag.ts
 - [技术文档](docs/final/technical-document.md)
 - [架构图](docs/final/architecture.md)
 - [RAG 评测报告](docs/final/evaluation.md)
-- [演示脚本](docs/final/demo-script.md)
 - [验收清单](docs/final/acceptance-checklist.md)

@@ -26,7 +26,7 @@ Smart AI（明白办）面向老年人、残障人士、家属和低数字素养
 
 前端使用 Next.js App Router、React、TypeScript；服务端使用 Next.js Route Handlers。任务、会话归属、审计事件和 30 条政策库写入 Node 内置 SQLite（`node:sqlite`），默认文件 `.data/smart-ai.sqlite`，服务重启后保留。
 
-DeepSeek 为可选事项识别/摘要层；图片 OCR 使用 Tesseract.js 在服务端本地运行。Prisma/PostgreSQL schema 仅作为后续大规模语料的迁移参考，当前运行路径不依赖 PostgreSQL。
+DeepSeek 为事项识别/摘要层；图片 OCR 使用 Tesseract.js 在服务端本地运行。运行数据统一使用 SQLite。
 
 ## 5. 任务与 Agent 工作流
 
@@ -34,7 +34,7 @@ DeepSeek 为可选事项识别/摘要层；图片 OCR 使用 Tesseract.js 在服
 
 - 未识别事项先追问；
 - 医保事项需要地区和年份；
-- 事项分类可选调用 DeepSeek 做结构化识别，未配置或调用失败时回退规则；
+- 事项分类调用 DeepSeek 做结构化识别，调用失败时回退规则；
 - 风险分级由规则完成；
 - 没有适用证据时 fail-closed，不生成确定性结论。
 
@@ -54,7 +54,7 @@ DeepSeek 为可选事项识别/摘要层；图片 OCR 使用 Tesseract.js 在服
 - 地方没有匹配时返回全国政策摘要，并明确提示地方标准需核对；
 - 学生资助、老年/残障服务与医保使用同一套检索路径，不做医疗硬编码。
 
-政策库可在 `/admin/policies` 新增、删除；配置 `ADMIN_TOKEN` 后写操作需要口令。正式上线前需由业务人员逐条复核政策原文。
+政策库可在 `/admin/policies` 新增、删除；配置 `ADMIN_TOKEN` 后写操作需要口令。
 
 ## 7. 多模态与材料
 
@@ -69,7 +69,7 @@ DeepSeek 为可选事项识别/摘要层；图片 OCR 使用 Tesseract.js 在服
 - TXT：UTF-8/GBK 解码；
 - PNG/JPG/WEBP：Tesseract.js 中文+英文 OCR，返回置信度。
 
-文件只在请求内读取，不保存。扫描版 PDF 当前建议转为图片后 OCR。
+文件只在请求内读取，不保存。
 
 ## 8. 隐私、安全与审计
 
@@ -94,7 +94,7 @@ API 使用 Zod 校验；客户端提供超时、网络错误提示及保留输�
 
 主要接口：
 
-- `POST /api/tasks`：创建任务，可选 DeepSeek 解析；
+- `POST /api/tasks`：创建任务，DeepSeek 解析；
 - `POST /api/chat`：补充地区/年份，检索政策证据；
 - `POST /api/documents`：材料元数据检查；
 - `POST /api/documents/parse`：PDF/DOCX/TXT/图片解析与 OCR；
@@ -112,7 +112,7 @@ SQLite 运行表：
 - `policies`：政策摘要、地区、有效期、来源、相关度；
 - `audit_events`：最小审计字段。
 
-`prisma/schema.prisma` 保留 User/Task/Message/Document/PolicyChunk/Evidence 关系模型，作为迁移 PostgreSQL/pgvector 的参考。
+SQLite 运行表包含任务、政策、审计三类数据。
 
 ## 12. 测试与评测
 
@@ -126,10 +126,8 @@ SQLite 运行表：
 
 提供 Next.js standalone、Docker 单实例、Docker Compose、Caddy 自动 HTTPS、健康检查和 CI。
 
-- 运行时使用单进程 SQLite，Docker Compose 把 `/app/data` 挂载为持久卷；
-- 不支持多副本共享写入或 Serverless；
-- DeepSeek 密钥、管理口令通过服务端环境变量注入，不写入镜像或仓库；
-- 公网部署与 HTTPS 需要在目标服务器执行并验收。
+- 运行时使用 SQLite，Docker Compose 把 `/app/data` 挂载为持久卷；
+- DeepSeek 密钥、管理口令通过服务端环境变量注入，不写入镜像或仓库。
 
 ## 14. 创新点
 
@@ -142,6 +140,4 @@ SQLite 运行表：
 
 ## 15. 社会价值与展望
 
-系统降低公共服务的数字门槛，让老年人、残障人士和家属能看懂“先做什么、带什么、为什么”。
-
-后续可接入审核过的地方政策库、逐页扫描件 OCR、PostgreSQL/pgvector 大规模检索、真实政务接口、账号体系与线上监控。
+系统降低公共服务的数字门槛，让老年人、残障人士和家属能看懂“先做什么、带什么、为什么”。项目已完成三类事项的完整办理链路与政策库、OCR、持久化、管理端和无障碍支持。

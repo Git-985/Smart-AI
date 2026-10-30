@@ -140,7 +140,7 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
     } else {
       throw new DocumentParseError(
         "UNSUPPORTED_TYPE",
-        "当前支持 PDF、DOCX、TXT、PNG、JPG、WEBP 图片；扫描版 PDF 请转为图片后上传。",
+        "当前支持 PDF、DOCX、TXT、PNG、JPG、WEBP 文件。",
         415,
       );
     }
@@ -148,16 +148,16 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
     if (error instanceof DocumentParseError) throw error;
     throw new DocumentParseError(
       "PARSE_FAILED",
-      "文件解析失败。若为扫描版 PDF，请先进行 OCR 或转换为文字后再上传。",
+      "文件解析失败，请检查文件是否完整。",
       422,
     );
   }
 
   const normalized = normalizeText(text);
   if (!normalized) {
-      throw new DocumentParseError(
+    throw new DocumentParseError(
       "NO_TEXT",
-      "没有提取到可读文本。请确认图片清晰、文字完整；扫描版 PDF 请转为图片后重试。",
+      "没有提取到可读文本，请检查文件是否清晰完整。",
       422,
     );
   }

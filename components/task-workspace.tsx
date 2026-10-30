@@ -115,7 +115,7 @@ export function TaskWorkspace({ initialTask, initialMessage = "" }: Props) {
     };
     const SpeechRecognition = voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setNotice("当前浏览器不支持语音输入，请使用文字输入。");
+      setNotice("请使用 Edge 或 Chrome 的语音识别，或直接输入文字。");
       return;
     }
     const recognition = new SpeechRecognition();
@@ -140,7 +140,7 @@ export function TaskWorkspace({ initialTask, initialMessage = "" }: Props) {
       return;
     }
     if (!("speechSynthesis" in window)) {
-      setNotice("当前浏览器不支持语音播报，请阅读文字版。");
+      setNotice("请使用 Edge 或 Chrome 的语音播报，或阅读文字版。");
       return;
     }
     window.speechSynthesis.cancel();
