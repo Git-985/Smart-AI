@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DocumentParseError, parseDocument } from "../../lib/documents/parse";
+import { parseDocument } from "../../lib/documents/parse";
 
 describe("document parsing", () => {
   it("extracts UTF-8 text", async () => {
@@ -10,8 +10,8 @@ describe("document parsing", () => {
     expect(result.truncated).toBe(false);
   });
 
-  it("rejects images without OCR", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "demo.png", { type: "image/png" });
-    await expect(parseDocument(file)).rejects.toBeInstanceOf(DocumentParseError);
+  it("rejects unsupported binary files", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "demo.bin", { type: "application/octet-stream" });
+    await expect(parseDocument(file)).rejects.toMatchObject({ code: "UNSUPPORTED_TYPE" });
   });
 });

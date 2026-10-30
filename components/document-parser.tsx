@@ -10,6 +10,8 @@ type ParseResult = {
   textLength: number;
   truncated: boolean;
   text: string;
+  ocrUsed?: boolean;
+  ocrConfidence?: number;
 };
 
 function formatBytes(bytes: number): string {
@@ -34,7 +36,7 @@ export function DocumentParser() {
     const form = new FormData();
     form.append("file", file);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
+    const timer = setTimeout(() => controller.abort(), 60000);
 
     try {
       const response = await fetch("/api/documents/parse", {
@@ -79,7 +81,7 @@ export function DocumentParser() {
           <input
             className="sr-only"
             type="file"
-            accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,application/pdf,text/plain,image/png,image/jpeg,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(event) => {
               const next = event.target.files?.[0] ?? null;
               setFile(next);
@@ -88,7 +90,7 @@ export function DocumentParser() {
             }}
           />
           <strong>选择或拖入一个文件</strong>
-          <span>支持 PDF、DOCX、TXT，最大 10MB；文件只在本次请求中读取，不保存。</span>
+          <span>支持 PDF、DOCX、TXT、PNG、JPG，最大 10MB；图片会做本地 OCR，文件不在服务端保存。</span>
         </label>
         {file && <p className="document-file">已选择：{file.name}（{formatBytes(file.size)}）</p>}
         <div className="document-actions">
@@ -115,6 +117,7 @@ export function DocumentParser() {
           <p className="document-meta">
             {result.mimeType} · {formatBytes(result.size)}
             {result.pages ? ` · ${result.pages} 页` : ""} · 提取 {result.textLength} 字
+            {result.ocrUsed ? ` · OCR 置信度 ${result.ocrConfidence ?? 0}%` : ""}
             {result.truncated ? "（已截取前 20,000 字）" : ""}
           </p>
           <pre className="document-text">{result.text}</pre>

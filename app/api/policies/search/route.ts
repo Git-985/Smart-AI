@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   });
   return NextResponse.json({
     items,
-    status: items.length ? "DEMO_EVIDENCE_ONLY" : "NO_POLICY_DATA",
-    message: items.length ? "以下为虚构演示证据，不代表官方政策。" : "没有匹配的已验证政策资料，不能据此作出政策结论。",
+    status: items.length ? "POLICY_EVIDENCE" : "NO_POLICY_DATA",
+    message: items.length ? "以下为内置政策库摘要，具体以官方原文和当地经办口径为准。" : "没有匹配的已验证政策资料，不能据此作出政策结论。",
   });
 }

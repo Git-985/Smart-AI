@@ -284,3 +284,6 @@ html[data-contrast="high"] textarea:focus-visible { outline-color: #000; outline
 .document-result-head h2 { margin: 4px 0 0; font-size: 20px; }
 .document-meta { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .document-text { max-height: 360px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #F4F7FB; border: 1px solid var(--line); border-radius: 6px; padding: 14px; font-size: 13px; line-height: 1.65; }
+
+.status-chip { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #EEF3F8; color: var(--muted); font-size: 11px; font-weight: 600; }
+@media print { .topbar, .nav, .footer, .small-action, .primary-button { display: none !important; } .main { max-width: none; padding: 0; } }

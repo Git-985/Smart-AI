@@ -11,6 +11,10 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      SMART_AI_DB_PATH: /app/data/smart-ai.sqlite
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    volumes:
+      - smartai_data:/app/data
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
@@ -44,5 +48,6 @@ services:
         condition: service_healthy
 
 volumes:
+  smartai_data:
   caddy_data:
   caddy_config:

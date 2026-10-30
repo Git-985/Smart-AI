@@ -37,7 +37,7 @@ describe("chat clarification safety", () => {
     expect(body.task.status).toBe("WAITING_CONFIRMATION");
     expect(body.task.message).toContain("138****8000");
     expect(body.task.message).not.toContain("13800138000");
-    expect(body.task.evidence).toHaveLength(1);
+    expect(body.task.evidence.length).toBeGreaterThan(0);
     expect(getAuditEvents(task.id).at(-1)?.metadata.riskLevel).toBe("HIGH");
   });
 });

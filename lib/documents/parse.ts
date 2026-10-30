@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 20000;
 
@@ -9,6 +11,8 @@ export type ParsedDocument = {
   textLength: number;
   truncated: boolean;
   text: string;
+  ocrUsed?: boolean;
+  ocrConfidence?: number;
 };
 
 export class DocumentParseError extends Error {
@@ -26,9 +30,49 @@ function normalizeText(value: string): string {
   return value
     .replace(/\u0000/g, "")
     .replace(/\r\n?/g, "\n")
+    .replace(/(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+type OcrWorker = {
+  recognize: (input: Buffer) => Promise<{ data: { text: string; confidence: number } }>;
+};
+
+const globalForOcr = globalThis as unknown as { smartAiOcrWorker?: Promise<OcrWorker> };
+
+async function getOcrWorker(): Promise<OcrWorker> {
+  if (!globalForOcr.smartAiOcrWorker) {
+    globalForOcr.smartAiOcrWorker = (async () => {
+      const [{ createWorker }, path] = await Promise.all([import("tesseract.js"), import("node:path")]);
+      const candidates = [
+        path.join(process.cwd(), "public", "tessdata"),
+        path.join(process.cwd(), "..", "public", "tessdata"),
+      ];
+      const langPath = candidates.find((candidate) => {
+        try {
+          return fs.existsSync(path.join(candidate, "chi_sim.traineddata.gz"));
+        } catch {
+          return false;
+        }
+      }) ?? candidates[0];
+      return await createWorker("chi_sim+eng", 1, {
+        langPath,
+        cachePath: path.join(process.cwd(), ".tesseract-cache"),
+      }) as unknown as OcrWorker;
+    })().catch((error) => {
+      globalForOcr.smartAiOcrWorker = undefined;
+      throw error;
+    });
+  }
+  return globalForOcr.smartAiOcrWorker;
+}
+
+async function ocrImage(buffer: Buffer): Promise<{ text: string; confidence: number }> {
+  const worker = await getOcrWorker();
+  const result = await worker.recognize(buffer);
+  return { text: result.data.text, confidence: Math.round(result.data.confidence) };
 }
 
 function decodeText(buffer: Buffer): string {
@@ -63,12 +107,21 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
     mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     name.endsWith(".docx");
   const isText = mimeType.startsWith("text/") || name.endsWith(".txt");
+  const isImage = mimeType.startsWith("image/") || /\.(png|jpe?g|webp|bmp)$/i.test(name);
 
   let text = "";
   let pages: number | undefined;
+  let ocrUsed = false;
+  let ocrConfidence: number | undefined;
 
   try {
-    if (isPdf) {
+    if (isImage) {
+      const ocr = await ocrImage(buffer);
+      text = ocr.text;
+      pages = 1;
+      ocrUsed = true;
+      ocrConfidence = ocr.confidence;
+    } else if (isPdf) {
       const { PDFParse } = await import("pdf-parse");
       const parser = new PDFParse({ data: new Uint8Array(buffer) });
       try {
@@ -87,7 +140,7 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
     } else {
       throw new DocumentParseError(
         "UNSUPPORTED_TYPE",
-        "当前支持 PDF、DOCX、TXT。图片 OCR 尚未启用，请先转换为 PDF 或文字。",
+        "当前支持 PDF、DOCX、TXT、PNG、JPG、WEBP 图片；扫描版 PDF 请转为图片后上传。",
         415,
       );
     }
@@ -102,9 +155,9 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
 
   const normalized = normalizeText(text);
   if (!normalized) {
-    throw new DocumentParseError(
+      throw new DocumentParseError(
       "NO_TEXT",
-      "没有提取到可读文本。扫描版 PDF 或纯图片需要 OCR，当前演示未启用。",
+      "没有提取到可读文本。请确认图片清晰、文字完整；扫描版 PDF 请转为图片后重试。",
       422,
     );
   }
@@ -114,11 +167,13 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
 
   return {
     filename: file.name,
-    mimeType: mimeType || (isPdf ? "application/pdf" : isDocx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/plain"),
+    mimeType: mimeType || (isPdf ? "application/pdf" : isImage ? "image/png" : isDocx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/plain"),
     size: file.size,
     pages,
     textLength,
     truncated,
     text: truncated ? normalized.slice(0, MAX_TEXT_LENGTH) : normalized,
+    ocrUsed,
+    ocrConfidence,
   };
 }

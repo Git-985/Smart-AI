@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     message: missingFields.length
       ? `还需要确认：${missingFields.join("、")}`
       : evidence.length
-        ? "已完成演示检索。以下材料是虚构数据，请先阅读风险提示。"
+        ? "已完成政策检索。以下为内置政策库摘要，请以官方原文为准。"
         : "没有找到适用的政策证据，因此不提供确定性结论。",
   });
 }

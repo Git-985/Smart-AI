@@ -1,0 +1,82 @@
+[
+  {
+    "id": "Q1",
+    "question": "父亲居民医保缴费，地区北京，2026 年",
+    "region": "北京市",
+    "serviceType": "medical_insurance",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "serviceType": "medical_insurance", "titleIncludes": "医疗保险" }
+  },
+  {
+    "id": "Q2",
+    "question": "上海居民医保怎么参保",
+    "region": "上海市",
+    "serviceType": "medical_insurance",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "regionIn": ["上海市", "全国"], "titleIncludes": "上海" }
+  },
+  {
+    "id": "Q3",
+    "question": "异地就医备案怎么办",
+    "region": "广东省",
+    "serviceType": "medical_insurance",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "titleIncludes": "异地" }
+  },
+  {
+    "id": "Q4",
+    "question": "新生儿医保参保",
+    "region": "未知地区",
+    "serviceType": "medical_insurance",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "allRegion": "全国" }
+  },
+  {
+    "id": "Q5",
+    "question": "孩子上大学，想申请国家助学金",
+    "region": "北京市",
+    "serviceType": "student_aid",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "serviceType": "student_aid", "titleIncludes": "助学金" }
+  },
+  {
+    "id": "Q6",
+    "question": "生源地助学贷款需要什么",
+    "region": "河南省",
+    "serviceType": "student_aid",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "titleIncludes": "贷款" }
+  },
+  {
+    "id": "Q7",
+    "question": "老人高龄津贴怎么申请",
+    "region": "上海市",
+    "serviceType": "elderly_disability_service",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "serviceType": "elderly_disability_service", "titleIncludes": "高龄" }
+  },
+  {
+    "id": "Q8",
+    "question": "重度残疾人护理补贴",
+    "region": "四川省",
+    "serviceType": "elderly_disability_service",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "titleIncludes": "护理" }
+  },
+  {
+    "id": "Q9",
+    "question": "医保报销",
+    "region": "北京市",
+    "serviceType": "student_aid",
+    "year": 2026,
+    "expect": { "nonEmpty": true, "allServiceType": "student_aid" }
+  },
+  {
+    "id": "Q10",
+    "question": "2025 年居民医保缴费",
+    "region": "北京市",
+    "serviceType": "medical_insurance",
+    "year": 2025,
+    "expect": { "empty": true }
+  }
+]

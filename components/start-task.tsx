@@ -5,9 +5,21 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, AudioLines, Paperclip } from "lucide-react";
 import { maskSensitiveText } from "@/lib/security/pii";
 
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
 export function StartTask() {
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
+  const [listening, setListening] = useState(false);
   const router = useRouter();
 
   function submit(value = message) {
@@ -19,6 +31,28 @@ export function StartTask() {
     try { sessionStorage.setItem("smart-ai:initial-message", maskSensitiveText(text)); }
     catch { setNotice("浏览器禁止保存输入，请在下一页重新描述。"); }
     router.push("/task/new");
+  }
+
+  function startVoice() {
+    const scope = window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
+    const Recognition = scope.SpeechRecognition ?? scope.webkitSpeechRecognition;
+    if (!Recognition) {
+      setNotice("当前浏览器不支持语音识别，请使用文字描述，或改用 Edge/Chrome。");
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from({ length: event.results.length }, (_, index) => event.results[index][0]?.transcript ?? "").join("");
+      if (transcript) setMessage((current) => `${current}${transcript}`.slice(0, 2000));
+    };
+    recognition.onerror = () => { setNotice("语音识别没有成功，请改用文字输入。"); setListening(false); };
+    recognition.onend = () => setListening(false);
+    setListening(true);
+    setNotice("正在听您说，请直接描述要办理的事情。");
+    recognition.start();
   }
 
   return (
@@ -37,8 +71,8 @@ export function StartTask() {
       </div>
       <div className="compose-footer">
         <div className="attach-actions">
-          <button className="small-action" type="button" onClick={() => setNotice("材料上传当前演示未接入。请勿上传真实证件。")}><Paperclip size={16} aria-hidden="true" />添加材料</button>
-          <button className="small-action" type="button" onClick={() => setNotice("语音输入当前演示未接入，您可以先使用文字描述。")}><AudioLines size={16} aria-hidden="true" />语音描述</button>
+          <button className="small-action" type="button" onClick={() => router.push("/documents")}><Paperclip size={16} aria-hidden="true" />材料解析</button>
+          <button className="small-action" type="button" onClick={startVoice} disabled={listening}><AudioLines size={16} aria-hidden="true" />{listening ? "正在听…" : "语音描述"}</button>
         </div>
         <button className="primary-button" type="button" onClick={() => submit()}>
           开始梳理 <ArrowRight size={17} aria-hidden="true" />

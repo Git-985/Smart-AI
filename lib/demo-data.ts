@@ -2,6 +2,7 @@ import type { PolicyEvidence } from "@/lib/rag/types";
 import type { DeepSeekAnalysis } from "@/lib/ai/deepseek";
 import { maskSensitiveText } from "@/lib/security/pii";
 import { randomUUID } from "node:crypto";
+import { deleteTask, findTask, purgeExpiredTasks, saveTask, type StoredTask } from "@/lib/store";
 
 export type DemoTask = {
   id: string;
@@ -22,38 +23,37 @@ export type DemoTask = {
   aiSummary?: string;
 };
 
-const globalForDemo = globalThis as unknown as { smartAiTasks?: Map<string, DemoTask> };
-const tasks = globalForDemo.smartAiTasks ?? new Map<string, DemoTask>();
-globalForDemo.smartAiTasks = tasks;
-const ownerGlobal = globalThis as unknown as { smartAiOwners?: Map<string, string> };
-const owners = ownerGlobal.smartAiOwners ?? new Map<string, string>();
-ownerGlobal.smartAiOwners = owners;
-
-export const demoPolicies: PolicyEvidence[] = [
-  {
-    policyId: "demo-medical-2026-001",
-    title: "Smart AI 演示政策：居民医保缴费咨询样例",
-    serviceType: "medical_insurance",
-    region: "演示地区",
-    effectiveAt: "2026-01-01",
-    expiredAt: null,
-    quote: "本条为虚构演示条款，不代表任何地区的真实政策。正式办理前请以当地医保部门公开信息为准。",
-    sourceUrl: "https://example.com/smart-ai-demo-policy",
-    section: "演示数据说明",
-    relevance: 1,
-    applicabilityReason: "仅用于展示证据卡片和风险提示，不用于真实资格判断。",
-  },
-];
+function toTask(row: StoredTask): DemoTask {
+  return {
+    id: row.id,
+    message: row.message,
+    serviceType: row.serviceType as DemoTask["serviceType"],
+    title: row.title,
+    status: row.status as DemoTask["status"],
+    riskLevel: row.riskLevel as DemoTask["riskLevel"],
+    missingFields: row.missingFields,
+    knownFacts: row.knownFacts,
+    evidence: row.evidence,
+    plan: row.plan,
+    createdAt: row.createdAt,
+    userConfirmed: row.userConfirmed,
+    region: row.region ?? undefined,
+    year: row.year ?? undefined,
+    analysisSource: row.analysisSource,
+    aiSummary: row.aiSummary ?? undefined,
+  };
+}
 
 export function inferServiceType(message: string): DemoTask["serviceType"] {
-  if (/医保|医疗|参保|缴费/.test(message)) return "medical_insurance";
-  if (/助学|学生|资助/.test(message)) return "student_aid";
-  if (/残障|残疾|老人|老年|行动不便/.test(message)) return "elderly_disability_service";
+  if (/医保|医疗|参保|缴费|报销|慢病|异地就医/.test(message)) return "medical_insurance";
+  if (/助学|学生|资助|奖学金|贷款|学费|绿色通道/.test(message)) return "student_aid";
+  if (/残障|残疾|老人|老年|高龄|补贴|护理|适老化|无障碍|特困/.test(message)) return "elderly_disability_service";
   return "unknown";
 }
 
 export function riskForServiceType(serviceType: DemoTask["serviceType"]): DemoTask["riskLevel"] {
-  return serviceType === "medical_insurance" ? "HIGH" : "MEDIUM";
+  if (serviceType === "medical_insurance" || serviceType === "elderly_disability_service") return "HIGH";
+  return "MEDIUM";
 }
 
 export function createDemoTask(
@@ -61,6 +61,7 @@ export function createDemoTask(
   owner?: string,
   analysis?: DeepSeekAnalysis,
 ): DemoTask {
+  purgeExpiredTasks();
   const id = `demo_${randomUUID()}`;
   const safeMessage = maskSensitiveText(input.message);
   const serviceType = analysis?.serviceType ?? inferServiceType(safeMessage);
@@ -83,34 +84,61 @@ export function createDemoTask(
     evidence: [],
     plan: [],
     createdAt: new Date().toISOString(),
+    userConfirmed: false,
     region: input.region,
     year: input.year,
     analysisSource: analysis ? "deepseek" : "rules",
     aiSummary: analysis?.summary,
   };
-  tasks.set(id, task);
-  if (owner) owners.set(id, owner);
+  saveTask({ ...toStored(task, owner ?? null) });
   return task;
+}
+
+function toStored(task: DemoTask, owner: string | null): StoredTask {
+  return {
+    id: task.id,
+    owner,
+    message: task.message,
+    serviceType: task.serviceType,
+    title: task.title,
+    status: task.status,
+    riskLevel: task.riskLevel,
+    missingFields: task.missingFields,
+    knownFacts: task.knownFacts,
+    evidence: task.evidence,
+    plan: task.plan,
+    createdAt: task.createdAt,
+    userConfirmed: task.userConfirmed ?? false,
+    region: task.region ?? null,
+    year: task.year ?? null,
+    analysisSource: task.analysisSource ?? "rules",
+    aiSummary: task.aiSummary ?? null,
+  };
 }
 
 export function getDemoTask(id: string) {
-  const task = tasks.get(id);
-  if (task && Date.now() - Date.parse(task.createdAt) >= 86400000) {
-    tasks.delete(id);
-    owners.delete(id);
+  purgeExpiredTasks();
+  const row = findTask(id);
+  if (!row) return undefined;
+  if (Date.now() - Date.parse(row.createdAt) >= 86400000) {
+    deleteTask(id);
     return undefined;
   }
-  return task;
+  return toTask(row);
 }
 
 export function ownedTask(id: string, owner: string | undefined) {
-  return owner && owners.get(id) === owner ? getDemoTask(id) : undefined;
+  if (!owner) return undefined;
+  const task = getDemoTask(id);
+  const row = findTask(id);
+  return task && row?.owner === owner ? task : undefined;
 }
 
 export function updateDemoTask(id: string, patch: Partial<DemoTask>) {
   const current = getDemoTask(id);
   if (!current) return undefined;
-  const next = { ...current, ...patch };
-  tasks.set(id, next);
+  const row = findTask(id);
+  const next: DemoTask = { ...current, ...patch };
+  saveTask(toStored(next, row?.owner ?? null));
   return next;
 }

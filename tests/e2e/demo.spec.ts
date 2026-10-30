@@ -12,22 +12,22 @@ test("首页到指南、元数据检查、家属协助与刷新恢复", async ({
   await page.getByLabel("所在省、市、区").fill("演示地区");
   await page.getByLabel("办理年份").fill("2026");
   await page.getByRole("button", { name: "继续梳理" }).click();
-  await expect(page.locator(".evidence-title").first()).toContainText("演示政策");
+  await expect(page.locator(".evidence-title").first()).toContainText("医疗保险");
   await page.reload();
-  await expect(page.locator(".evidence-title").first()).toContainText("演示政策");
+  await expect(page.locator(".evidence-title").first()).toContainText("医疗保险");
   await page.getByRole("button", { name: "重新检查任务" }).click();
-  await expect(page.getByRole("status").last()).toContainText("已完成演示检索");
+  await expect(page.getByRole("status").last()).toContainText("已完成政策检索");
 
   // Arbitrary bytes are never inspected: the UI and API must say metadata-only.
   await page.locator('input[type="file"]').setInputFiles({
     name: "fixture.png", mimeType: "image/png", buffer: Buffer.from("metadata-only fixture"),
   });
   await expect(page.locator(".material-card")).toContainText("未执行 OCR");
-  await page.getByLabel("我已了解上述演示范围").check();
+  await page.getByLabel("我已了解上述办理范围").check();
   await page.getByRole("button", { name: "确认并记录" }).click();
   await expect(page.getByRole("button", { name: "已记录确认" })).toBeDisabled();
   const taskUrl = page.url();
-  await page.getByRole("link", { name: "查看演示指南" }).click();
+  await page.getByRole("link", { name: "查看办理指南" }).click();
   await expect(page.getByRole("heading", { name: "现在该做什么" })).toBeVisible();
   await page.getByRole("link", { name: "家属协助清单" }).click();
   const first = page.getByRole("checkbox").first();
@@ -39,11 +39,12 @@ test("首页到指南、元数据检查、家属协助与刷新恢复", async ({
   expect(errors).toEqual([]);
 });
 
-test("无证据地区明确兜底", async ({ page }) => {
+test("无适用证据时明确兜底", async ({ page }) => {
   await page.goto("/task/new");
   await page.getByLabel("描述办理需求").fill("居民医保缴费");
   await page.getByRole("button", { name: "识别事项" }).click();
-  await page.getByLabel("所在省、市、区").fill("上海市");
+  await page.getByLabel("所在省、市、区").fill("西藏自治区");
+  await page.getByLabel("办理年份").fill("2024");
   await page.getByRole("button", { name: "继续梳理" }).click();
   await expect(page.getByRole("status").last()).toContainText("没有找到适用的政策证据");
   await expect(page.locator(".evidence-title")).toHaveCount(0);
@@ -121,5 +122,8 @@ test("无效 JSON 和非法文件元数据返回可控错误", async ({ request 
   expect((await request.post("/api/documents", { data: { mimeType: "image/png", size: 10485761 } })).status()).toBe(400);
   const health = await request.get("/api/health");
   expect(health.status()).toBe(200);
-  expect((await health.json()).storage).toBe("process-memory");
+  const healthBody = await health.json();
+  expect(healthBody.storage).toBe("sqlite");
+  expect(healthBody.ocrEnabled).toBe(true);
+  expect(healthBody.policyCount).toBeGreaterThanOrEqual(30);
 });

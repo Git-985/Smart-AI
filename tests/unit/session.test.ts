@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDemoTask, ownedTask } from "../../lib/demo-data";
+import { createDemoTask, ownedTask, updateDemoTask } from "../../lib/demo-data";
 import { createSession } from "../../lib/security/session";
 
 describe("anonymous task ownership", () => {
@@ -9,7 +9,7 @@ describe("anonymous task ownership", () => {
     expect(ownedTask(task.id, owner)?.id).toBe(task.id);
     expect(ownedTask(task.id, createSession())).toBeUndefined();
     expect(ownedTask(task.id, undefined)).toBeUndefined();
-    task.createdAt = new Date(Date.now() - 86400001).toISOString();
+    updateDemoTask(task.id, { createdAt: new Date(Date.now() - 86400001).toISOString() });
     expect(ownedTask(task.id, owner)).toBeUndefined();
   });
   it("generates unique IDs even during simultaneous creation", () => {

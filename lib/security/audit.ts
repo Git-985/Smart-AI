@@ -1,3 +1,5 @@
+import { listAuditRows, recordAuditRow } from "@/lib/store";
+
 export type AuditEvent = {
   taskId: string;
   eventType: "POLICY_USED" | "NO_EVIDENCE" | "TOOL_CALLED" | "USER_CONFIRMED" | "RISK_TRIGGERED" | "MODEL_RETRY";
@@ -5,15 +7,15 @@ export type AuditEvent = {
   createdAt: Date;
 };
 
-const globalForAudit = globalThis as unknown as { smartAiAuditEvents?: AuditEvent[] };
-const auditEvents = globalForAudit.smartAiAuditEvents ?? [];
-globalForAudit.smartAiAuditEvents = auditEvents;
-
 export function recordAuditEvent(event: AuditEvent) {
-  auditEvents.push(event);
-  if (auditEvents.length > 500) auditEvents.splice(0, auditEvents.length - 500);
+  recordAuditRow(event.taskId, event.eventType, event.metadata.riskLevel ?? null, event.createdAt.toISOString());
 }
 
-export function getAuditEvents(taskId: string) {
-  return auditEvents.filter((event) => event.taskId === taskId);
+export function getAuditEvents(taskId: string): AuditEvent[] {
+  return listAuditRows(taskId).map((row) => ({
+    taskId: row.task_id,
+    eventType: row.event_type as AuditEvent["eventType"],
+    metadata: { riskLevel: (row.risk_level as AuditEvent["metadata"]["riskLevel"]) ?? undefined },
+    createdAt: new Date(row.created_at),
+  }));
 }

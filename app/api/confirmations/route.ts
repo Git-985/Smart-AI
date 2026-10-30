@@ -24,6 +24,6 @@ export async function POST(request: Request) {
     taskId: task.id,
     acknowledged: true,
     taskStatus: updated?.status,
-    message: "已记录您了解演示结果的适用范围；这不代表正式申请已提交或完成。",
+    message: "已记录您了解本次办理的适用范围；这不代表正式申请已提交或完成。",
   });
 }
