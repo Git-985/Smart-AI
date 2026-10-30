@@ -91,8 +91,8 @@ docs/final/          技术文档、架构图、演示脚本、验收清单
 
 ### 环境要求
 
-- Node.js 20.9 或更高版本
-- npm
+- Node.js 20.9 或更高版本（推荐 22 LTS；仓库提供 `.nvmrc`）
+- npm 10 或更高版本
 - 可选：Docker 与 Docker Compose（用于容器部署）
 - 可选：PostgreSQL + pgvector（当前演示未接入，仅为后续扩展预留）
 
@@ -101,6 +101,15 @@ docs/final/          技术文档、架构图、演示脚本、验收清单
 ```bash
 npm ci
 ```
+
+如果 npm 下载较慢，可临时切换到国内镜像（仅影响本机 npm 配置）：
+
+```bash
+npm config set registry https://registry.npmmirror.com
+npm ci
+```
+
+安装完成后如需要，可用 `npm config set registry https://registry.npmjs.org` 还原。
 
 ### 环境配置
 
