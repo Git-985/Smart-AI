@@ -268,3 +268,19 @@ html[data-contrast="high"] textarea:focus-visible { outline-color: #000; outline
   .primary-button { width: 100%; }
   .footer { flex-direction: column; }
 }
+
+.ai-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #EAF6F5; color: #0E7C7B; font-size: 11px; font-weight: 700; vertical-align: middle; }
+.ai-summary { margin-top: 8px; color: #14538C; font-size: 13px; line-height: 1.55; }
+
+.document-parser { margin-top: 20px; }
+.document-drop { display: grid; gap: 6px; padding: 24px; border: 2px dashed #C4D3E2; border-radius: 8px; background: #F4F7FB; cursor: pointer; }
+.document-drop strong { font-size: 16px; }
+.document-drop span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.document-drop input { margin-top: 8px; max-width: 100%; }
+.document-file { margin-top: 10px; color: var(--muted); font-size: 13px; }
+.document-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+.document-result { margin-top: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.document-result-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.document-result-head h2 { margin: 4px 0 0; font-size: 20px; }
+.document-meta { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.document-text { max-height: 360px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #F4F7FB; border: 1px solid var(--line); border-radius: 6px; padding: 14px; font-size: 13px; line-height: 1.65; }

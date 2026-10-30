@@ -21,6 +21,8 @@ type Task = {
   userConfirmed?: boolean;
   region?: string;
   year?: string;
+  analysisSource?: "deepseek" | "rules";
+  aiSummary?: string;
 };
 
 type Props = { initialTask?: Task; initialMessage?: string };
@@ -195,7 +197,12 @@ export function TaskWorkspace({ initialTask, initialMessage = "" }: Props) {
 
       <section className="task-center">
         <div className="panel-heading"><div><span className="eyebrow">AI 办理引导</span><h2>先把情况说明白</h2></div><span className="status-pill">{task ? task.status : "未开始"}</span></div>
-        <div className="message-card assistant"><strong>Smart AI</strong><p>{task?.missingFields.length ? `为了避免判断错误，还需要您补充：${task.missingFields.join("、")}。` : task ? "信息已补齐。我会展示可追溯的演示证据，并提示需要人工确认的部分。" : "您可以用文字或语音描述要办理的事情。我们会先识别事项，再追问必要信息。"}</p></div>
+        <div className="message-card assistant">
+          <strong>Smart AI</strong>
+          {task?.analysisSource === "deepseek" && <span className="ai-badge">DeepSeek 解析</span>}
+          <p>{task?.missingFields.length ? `为了避免判断错误，还需要您补充：${task.missingFields.join("、")}。` : task ? "信息已补齐。我会展示可追溯的演示证据，并提示需要人工确认的部分。" : "您可以用文字或语音描述要办理的事情。我们会先识别事项，再追问必要信息。"}</p>
+          {task?.aiSummary && <p className="ai-summary">{task.aiSummary}</p>}
+        </div>
         {task && <div className="message-card user"><strong>您描述的情况</strong><p>{task.message}</p></div>}
         {!task && <div className="task-input-area"><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="例如：我想帮父亲了解今年居民医保怎么缴费，他行动不太方便。" aria-label="描述办理需求" /><div className="input-actions"><button className="small-action" type="button" onClick={startVoice}><Mic size={16} />{isListening ? "正在听" : "语音输入"}</button><button className="primary-button" type="button" disabled={pending} onClick={() => void run(createTask)}><Send size={16} />识别事项</button></div></div>}
         {task?.missingFields.length ? <div className="clarify-form">{task.serviceType === "unknown" ? <label className="clarify-wide">请描述具体办理事项<input value={clarification} onChange={(event) => setClarification(event.target.value)} placeholder="例如：居民医保缴费咨询" /></label> : <><label>所在省、市、区<input value={region} onChange={(event) => setRegion(event.target.value)} placeholder="例如：演示地区" /></label>{task.serviceType === "medical_insurance" && <label>办理年份<input value={year} onChange={(event) => setYear(event.target.value)} inputMode="numeric" /></label>}</>}<button className="primary-button" type="button" disabled={pending} onClick={() => void run(continueTask)}><Send size={16} />继续梳理</button></div> : task && <div className="task-actions"><button className="primary-button" type="button" disabled={pending} onClick={() => void run(continueTask)}><Send size={16} />重新检查任务</button><label className="small-action upload-button"><FileCheck2 size={16} />材料格式检查<input type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void run(() => reviewFile(file)); event.currentTarget.value = ""; }} /></label><Link className="small-action" href={`/family/${task.id}`}>家属协助</Link></div>}

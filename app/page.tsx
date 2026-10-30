@@ -19,6 +19,7 @@ export default function HomePage() {
         </Link>
         <nav className="nav" aria-label="主导航">
           <Link href="/demo">演示体验</Link>
+          <Link href="/documents">材料解析</Link>
           <Link href="/onboarding">无障碍设置</Link>
           <Link href="/admin/policies">政策资料</Link>
         </nav>

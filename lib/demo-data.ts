@@ -1,4 +1,5 @@
 import type { PolicyEvidence } from "@/lib/rag/types";
+import type { DeepSeekAnalysis } from "@/lib/ai/deepseek";
 import { maskSensitiveText } from "@/lib/security/pii";
 import { randomUUID } from "node:crypto";
 
@@ -17,6 +18,8 @@ export type DemoTask = {
   userConfirmed?: boolean;
   region?: string;
   year?: string;
+  analysisSource?: "deepseek" | "rules";
+  aiSummary?: string;
 };
 
 const globalForDemo = globalThis as unknown as { smartAiTasks?: Map<string, DemoTask> };
@@ -53,16 +56,21 @@ export function riskForServiceType(serviceType: DemoTask["serviceType"]): DemoTa
   return serviceType === "medical_insurance" ? "HIGH" : "MEDIUM";
 }
 
-export function createDemoTask(input: { message: string; region?: string; year?: string }, owner?: string): DemoTask {
+export function createDemoTask(
+  input: { message: string; region?: string; year?: string },
+  owner?: string,
+  analysis?: DeepSeekAnalysis,
+): DemoTask {
   const id = `demo_${randomUUID()}`;
   const safeMessage = maskSensitiveText(input.message);
-  const serviceType = inferServiceType(safeMessage);
+  const serviceType = analysis?.serviceType ?? inferServiceType(safeMessage);
   const hasRegion = Boolean(input.region?.trim());
   const missingFields = serviceType === "unknown"
     ? ["具体想办理的事项"]
     : serviceType === "medical_insurance"
     ? [!hasRegion ? "所在省、市、区" : "", !input.year ? "办理年份" : ""].filter(Boolean)
     : [!hasRegion ? "所在省、市、区" : ""].filter(Boolean);
+  const knownFacts = analysis?.knownFacts?.length ? analysis.knownFacts.slice(0, 6) : [safeMessage];
   const task: DemoTask = {
     id,
     message: safeMessage,
@@ -71,12 +79,14 @@ export function createDemoTask(input: { message: string; region?: string; year?:
     status: missingFields.length ? "CLARIFYING" : "RETRIEVING",
     riskLevel: riskForServiceType(serviceType),
     missingFields,
-    knownFacts: [safeMessage],
+    knownFacts,
     evidence: [],
     plan: [],
     createdAt: new Date().toISOString(),
     region: input.region,
     year: input.year,
+    analysisSource: analysis ? "deepseek" : "rules",
+    aiSummary: analysis?.summary,
   };
   tasks.set(id, task);
   if (owner) owners.set(id, owner);

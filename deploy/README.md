@@ -123,6 +123,8 @@ ssh root@1.2.3.4 "DOMAIN=demo.example.com bash /root/bootstrap.sh /root/smartai-
 mkdir -p /opt/smartai && unzip -oq /root/smartai-src.zip -d /opt/smartai
 cd /opt/smartai/deploy
 echo 'DOMAIN=demo.example.com' > .env
+# 可选：启用 DeepSeek（不要把真实 key 提交到仓库）
+# echo 'DEEPSEEK_API_KEY=sk-...' >> .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 

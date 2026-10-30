@@ -15,9 +15,11 @@
 ### 主要功能
 
 - **事项识别与追问**：信息不全时先追问地区和年份，不直接下结论。
+- **DeepSeek 事项解析（可选）**：配置 API Key 后，用 DeepSeek 识别事项类型、抽取已提供事实并生成一句话摘要；未配置或调用失败时自动回退规则。
 - **政策证据链**：证据包含事项、地区、有效期、条款、来源和适用理由；地区或时间不匹配时返回空结果。
 - **无证据拒答（fail-closed）**：检索不到适用证据时，明确告知无法确认，不编造政策。
-- **材料元数据检查**：只校验浏览器提供的文件类型与大小，不接收文件内容，不执行 OCR。
+- **材料元数据检查**：任务工作台只校验浏览器提供的文件类型与大小，不接收文件内容，不执行 OCR。
+- **文档文本解析**：`/documents` 支持 PDF、DOCX、TXT 的文本提取；文件只在请求内读取，不保存，图片 OCR 未启用。
 - **风险确认与最小审计**：医疗、费用、资格权益等场景必须人工确认；审计只记录任务 ID、事件类型、风险级别与时间。
 - **无障碍支持**：100%–175% 字号、高对比度、键盘操作、语音输入/播报降级、家属协助清单。
 - **匿名会话隔离**：HttpOnly Cookie；任务页面与变更接口校验会话归属。
@@ -25,9 +27,10 @@
 ### 演示说明
 
 - 演示使用虚构人物、虚构地区和模拟政策条款，所有证据卡均标注“演示政策、虚构样例”。
-- 材料检查只读取类型和大小，不上传文件内容，不做 OCR。
+- 任务工作台的材料检查只读取类型和大小；独立的 `/documents` 解析页会读取文本用于展示，但不保存文件。
 - 用户确认只代表知情，**不等于正式提交**；系统不代替任何政府窗口。
-- 当前未接入真实大模型、真实政策库、OCR 和持久化数据库，这些属于后续扩展。
+- DeepSeek 仅用于事项识别与摘要，不生成政策结论；真实政策库、OCR 和持久化数据库尚未接入。
+- 未配置 `DEEPSEEK_API_KEY` 时，系统自动使用规则解析，功能仍可运行。
 
 ## 技术架构
 
@@ -39,30 +42,36 @@ flowchart LR
   UI --> T[任务 API]
   UI --> C[对话与追问 API]
   UI --> D[材料元数据 API]
+  UI --> P[文档解析 API]
   UI --> A[确认与审计 API]
 
   T --> S[匿名会话 + 单进程任务状态]
+  T --> AI[DeepSeek 事项识别 / 摘要]
+  AI --> S
   C --> W[规则状态机]
   W --> R[演示政策检索]
   R --> F[事项 / 地区 / 时间过滤]
   F --> E[证据卡 / 无证据拒答]
 
   D --> M[MIME + 文件大小检查]
+  P --> X[PDF / DOCX / TXT 文本提取]
   A --> H[风险确认 + 最小审计]
 
   DB[(PostgreSQL / pgvector 预留)] -. 后续接入 .-> S
-  LLM[真实模型 预留] -. 后续接入 .-> W
-  OCR[OCR 预留] -. 后续接入 .-> D
+  LLM[DeepSeek API 可选] -. 配置后接入 .-> AI
+  OCR[OCR 预留] -. 后续接入 .-> P
 ```
 
 ### 技术栈
 
 - **前端与服务端**：Next.js 15（App Router）、React 19、TypeScript
 - **接口**：Next.js Route Handlers，Zod 校验输入
+- **AI（可选）**：DeepSeek `deepseek-chat`，JSON 结构化输出；未配置时规则回退
+- **文档解析**：`pdf-parse`（PDF）、`mammoth`（DOCX）、原生文本解码（TXT）
 - **状态与会话**：单进程内存任务存储、HttpOnly 匿名会话
 - **测试**：Vitest 单元测试、Playwright 端到端测试
 - **构建与部署**：Next.js standalone、Docker、Docker Compose、Caddy
-- **后续扩展预留**：Prisma / PostgreSQL / pgvector、真实模型、OCR
+- **后续扩展预留**：Prisma / PostgreSQL / pgvector、真实政策库、图片 OCR
 
 ### 工程规范
 
@@ -74,9 +83,10 @@ flowchart LR
 ### 目录结构
 
 ```text
-app/                 页面与 Route Handlers
-components/          任务工作台、无障碍设置、家属协助等组件
-lib/ai/              Agent 状态流、结构化输出与提示词
+app/                 页面与 Route Handlers（含 /documents、/api/documents/parse）
+components/          任务工作台、无障碍设置、文档解析、家属协助等组件
+lib/ai/              Agent 状态流、DeepSeek 调用、结构化输出与提示词
+lib/documents/       PDF / DOCX / TXT 文本提取
 lib/rag/             政策证据类型与检索
 lib/security/        PII 脱敏、风险规则、会话与审计
 lib/api/             API 输入 schema
@@ -174,7 +184,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-当前结果：19 项单元测试、16 项 Playwright 用例（桌面与 390px 移动端）。覆盖追问、跨地区无证据、会话隔离、超时重试、文件元数据和确认不完成等边界。
+当前结果：21 项单元测试、16 项 Playwright 用例（桌面与 390px 移动端）。覆盖追问、跨地区无证据、会话隔离、超时重试、文件元数据、文档文本提取与确认不完成等边界。
 
 ### 部署
 
@@ -184,20 +194,20 @@ npm run test:e2e
 
 ## 环境变量
 
-模板文件：`.env.example`。演示模式全部可留空。
+模板文件：`.env.example`。演示模式可全部留空；未配置 DeepSeek 时自动回退规则解析。
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
 | `DATABASE_URL` | 否 | PostgreSQL 连接串；当前演示未接入数据库 |
-| `LLM_API_KEY` | 否 | 真实模型密钥；当前未接入 |
-| `LLM_BASE_URL` | 否 | 模型服务地址；当前未接入 |
-| `LLM_MODEL` | 否 | 模型名称；当前未接入 |
+| `DEEPSEEK_API_KEY` | 否 | DeepSeek 密钥；配置后启用事项识别与摘要 |
+| `DEEPSEEK_BASE_URL` | 否 | 默认 `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | 否 | 默认 `deepseek-chat` |
 | `EMBEDDING_API_KEY` | 否 | 向量检索密钥；预留 |
 | `STORAGE_ENDPOINT` | 否 | 对象存储地址；预留 |
 | `STORAGE_BUCKET` | 否 | 对象存储桶名；预留 |
 | `NEXT_PUBLIC_APP_URL` | 否 | 部署后的公开访问地址 |
 
-不要将真实密钥、真实证件或上传文件提交到仓库。
+`DEEPSEEK_API_KEY` 只在服务端读取，不会下发到浏览器；不要将真实密钥、真实证件或上传文件提交到仓库。
 
 ## 依赖清单
 
@@ -205,13 +215,14 @@ npm run test:e2e
 
 - `next`、`react`、`react-dom`
 - `zod`、`zustand`、`lucide-react`
+- `pdf-parse`、`mammoth`（文档文本解析）
 - `@prisma/client`（数据库扩展预留）
 
 开发与测试依赖：
 
 - `typescript`、`eslint`、`eslint-config-next`
 - `vitest`、`@playwright/test`
-- `prisma`、`tsx`、`@types/node`、`@types/react`、`@types/react-dom`
+- `prisma`、`tsx`、`@types/node`、`@types/react`、`@types/react-dom`、`@types/pdf-parse`
 
 依赖锁定文件为 `package-lock.json`，安装时使用 `npm ci` 以保证可复现。
 

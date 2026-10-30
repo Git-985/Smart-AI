@@ -13,8 +13,18 @@
 - [x] 地区、时间或事项不匹配时不返回证据
 - [x] 无证据时不下确定结论
 - [x] 任务内容脱敏、会话隔离
-- [x] 材料只做元数据检查，不接收文件内容
+- [x] 任务工作台的材料检查只读取类型和大小
+- [x] `/documents` 文档解析只读取文本，不保存文件
 - [x] 用户确认不代表正式提交
+
+## AI 与文档解析
+
+- [x] DeepSeek 调用层（结构化 JSON、超时、规则回退）已实现
+- [x] DeepSeek 接口以本地 mock 验证（未配置 key 时自动回退）
+- [ ] DeepSeek 真实 key 目标环境实测
+- [x] PDF / TXT 文本提取本地验证
+- [x] DOCX 文本提取路径已实现
+- [ ] 图片 OCR（当前未启用）
 
 ## 无障碍
 
@@ -26,7 +36,7 @@
 
 ## 工程与部署
 
-- [x] lint、typecheck、19项单测、16项E2E、standalone构建
+- [x] lint、typecheck、21项单测、16项E2E、standalone构建
 - [x] Dockerfile、Compose 与 CI 工作流已就绪
 - [x] 远端 GitHub Actions CI（含容器构建与健康检查）通过
 - [ ] 目标服务器 Docker 实测
@@ -34,6 +44,7 @@
 
 ## 已知限制
 
-- [x] 真实模型、OCR和政策知识库尚未接入
+- [x] 真实政策库、图片 OCR 和持久化数据库尚未接入
+- [x] DeepSeek 为可选能力，未配置时使用规则解析
 - [x] 任务依赖单进程内存，重启会丢失，不支持多副本
 - [x] Prisma工具链仍有3项 high npm audit 告警
