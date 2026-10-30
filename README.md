@@ -91,7 +91,7 @@ docs/final/          技术文档、架构图、演示脚本、验收清单
 
 ### 环境要求
 
-- Node.js 20.9 或更高版本（推荐 22 LTS；仓库提供 `.nvmrc`）
+- Node.js 22.12 或更高版本（推荐 22 LTS 或 24 LTS；仓库提供 `.nvmrc`）
 - npm 10 或更高版本
 - 可选：Docker 与 Docker Compose（用于容器部署）
 - 可选：PostgreSQL + pgvector（当前演示未接入，仅为后续扩展预留）
