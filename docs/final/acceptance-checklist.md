@@ -27,8 +27,9 @@
 ## 工程与部署
 
 - [x] lint、typecheck、19项单测、16项E2E、standalone构建
-- [x] Dockerfile、Compose、CI和手动镜像发布工作流已准备
-- [ ] Docker目标机与远端CI实测
+- [x] Dockerfile、Compose 与 CI 工作流已就绪
+- [x] 远端 GitHub Actions CI（含容器构建与健康检查）通过
+- [ ] 目标服务器 Docker 实测
 - [ ] 公网部署、HTTPS和线上稳定性验收
 
 ## 已知限制
