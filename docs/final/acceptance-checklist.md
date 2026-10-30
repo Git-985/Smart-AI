@@ -21,7 +21,7 @@
 
 - [x] DeepSeek 调用层（结构化 JSON、超时、规则回退）已实现
 - [x] DeepSeek 接口以本地 mock 验证（未配置 key 时自动回退）
-- [ ] DeepSeek 真实 key 目标环境实测
+- [x] DeepSeek 真实 key 目标环境实测（事项识别、摘要、PII 脱敏）
 - [x] PDF / TXT 文本提取本地验证
 - [x] DOCX 文本提取路径已实现
 - [ ] 图片 OCR（当前未启用）
