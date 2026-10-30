@@ -217,7 +217,7 @@ npx tsx scripts/evaluate-rag.ts
 核心运行依赖（版本以 `package.json` 为准）：
 
 - `next`、`react`、`react-dom`
-- `zod`、`zustand`、`lucide-react`
+- `zod`、`lucide-react`
 - `pdf-parse`、`mammoth`（文档文本解析）
 - `tesseract.js`（图片 OCR，含中文语言包）
 
