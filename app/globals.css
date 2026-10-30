@@ -197,7 +197,7 @@ h1 { max-width: 680px; margin: 12px 0 10px; font-size: clamp(32px, 4vw, 48px); l
 .family-checklist .panel-heading { align-items: center; }
 .family-intro { color: var(--muted); font-size: 14px; }
 .checklist-items { display: grid; }
-.checklist-item { display: grid; grid-template-columns: 20px 22px minmax(0, 1fr); align-items: start; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.checklist-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .checklist-item input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .check-icon { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid #88999d; border-radius: 3px; }
 .checklist-item input:checked + .check-icon { background: var(--green); border-color: var(--green); color: white; }
