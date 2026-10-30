@@ -12,8 +12,7 @@
     "test:performance": "node scripts/performance.mjs",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "db:push": "prisma db push"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",

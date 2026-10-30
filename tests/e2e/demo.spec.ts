@@ -58,6 +58,21 @@ test("未知事项先追问具体事项", async ({ page }) => {
   await expect(page.getByLabel("所在省、市、区")).toBeVisible();
 });
 
+test("三个演示场景直达工作台并带入对应描述", async ({ page }) => {
+  await page.goto("/demo");
+  const cases = [
+    { title: "居民医保缴费咨询", expected: /居民医保/ },
+    { title: "高校学生资助申请", expected: /助学金/ },
+    { title: "老年服务材料办理", expected: /老人/ },
+  ];
+  for (const scenario of cases) {
+    await page.goto("/demo");
+    await page.getByRole("link", { name: new RegExp(scenario.title) }).click();
+    await expect(page).toHaveURL(/\/task\/new\?scenario=/);
+    await expect(page.getByLabel("描述办理需求")).toHaveValue(scenario.expected);
+  }
+});
+
 test("网络失败保留输入并允许重试", async ({ page }) => {
   await page.goto("/task/new");
   await page.getByLabel("描述办理需求").fill("居民医保缴费");

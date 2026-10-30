@@ -72,9 +72,9 @@ export default function HomePage() {
           <aside className="demo-panel">
             <h2><Sparkles size={18} aria-hidden="true" />快速体验</h2>
             <p>使用虚拟场景查看办理流程，不需要填写真实个人信息。</p>
-            <Link className="demo-button" href="/demo">医保缴费咨询 <ArrowRight size={16} aria-hidden="true" /></Link>
-            <Link className="demo-button" href="/demo">学生资助申请 <ArrowRight size={16} aria-hidden="true" /></Link>
-            <Link className="demo-button" href="/demo">老年服务材料准备 <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="demo-button" href="/task/new?scenario=medical">医保缴费咨询 <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="demo-button" href="/task/new?scenario=student">学生资助申请 <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="demo-button" href="/task/new?scenario=elderly">老年服务材料准备 <ArrowRight size={16} aria-hidden="true" /></Link>
           </aside>
         </section>
         <footer className="footer">
