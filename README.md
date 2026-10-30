@@ -217,7 +217,8 @@ npm run test:e2e
 
 ## 演示视频
 
-- 录制脚本：[`docs/final/demo-script.md`](docs/final/demo-script.md)
+- 录制操作手册（内部使用，视频完成后删除）：[`docs/录制脚本.md`](docs/录制脚本.md)
+- 讲解稿：[`docs/final/demo-script.md`](docs/final/demo-script.md)
 - 视频链接：待补充（提交前填写 Bilibili / 网盘链接）
 
 建议录制路径：`/demo` 三类场景 → 事项识别 → 补地区与年份 → 证据卡 → 跨地区无证据 → 材料元数据 → 知情确认 → 家属协助。
