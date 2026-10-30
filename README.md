@@ -111,6 +111,19 @@ npm ci
 
 安装完成后如需要，可用 `npm config set registry https://registry.npmjs.org` 还原。
 
+### 一键启动（推荐）
+
+- Windows：双击 `start.bat`
+- macOS / Linux：运行 `./start.sh`
+
+首次运行会自动执行 `npm ci`，之后直接启动开发服务器并打开浏览器；端口 3000 被占用时会自动换到下一个可用端口。
+
+如果不想自动打开浏览器：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1 -NoBrowser
+```
+
 ### 环境配置
 
 演示模式不需要真实密钥，可直接运行。需要自定义配置时：
