@@ -52,7 +52,7 @@ export async function analyzeTaskWithDeepSeek(message: string): Promise<DeepSeek
   const baseUrl = (process.env.DEEPSEEK_BASE_URL?.trim() || "https://api.deepseek.com").replace(/\/+$/, "");
   const model = process.env.DEEPSEEK_MODEL?.trim() || "deepseek-chat";
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {
