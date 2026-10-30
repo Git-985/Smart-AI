@@ -37,8 +37,8 @@ export function StartTask() {
       </div>
       <div className="compose-footer">
         <div className="attach-actions">
-          <button className="small-action" type="button" onClick={() => setNotice("材料上传将在后续阶段接入。请勿上传真实证件。")}><Paperclip size={16} aria-hidden="true" />添加材料</button>
-          <button className="small-action" type="button" onClick={() => setNotice("语音输入将在后续阶段接入，您可以先使用文字描述。")}><AudioLines size={16} aria-hidden="true" />语音描述</button>
+          <button className="small-action" type="button" onClick={() => setNotice("材料上传当前演示未接入。请勿上传真实证件。")}><Paperclip size={16} aria-hidden="true" />添加材料</button>
+          <button className="small-action" type="button" onClick={() => setNotice("语音输入当前演示未接入，您可以先使用文字描述。")}><AudioLines size={16} aria-hidden="true" />语音描述</button>
         </div>
         <button className="primary-button" type="button" onClick={() => submit()}>
           开始梳理 <ArrowRight size={17} aria-hidden="true" />
