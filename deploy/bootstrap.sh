@@ -6,6 +6,16 @@
 
 set -Eeuo pipefail
 
+# Optional key/value file uploaded next to this script:
+#   DOMAIN=... ADMIN_TOKEN=... DEEPSEEK_API_KEY=...
+ENV_FILE="${SMART_AI_ENV_FILE:-/root/smartai.env}"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+
 DOMAIN="${DOMAIN:-}"
 SRC_ZIP="${1:-/root/smartai-src.zip}"
 APP_ROOT="/opt/smartai"
@@ -73,9 +83,26 @@ unzip -oq "$SRC_ZIP" -d "$APP_ROOT"
 [ -f "$APP_ROOT/Dockerfile" ] || fail "Dockerfile missing after unzip; check zip layout"
 [ -f "$APP_ROOT/deploy/docker-compose.prod.yml" ] || fail "deploy files missing after unzip"
 
-log "6/7 configure domain and build"
+log "6/7 configure environment and build"
 cd "$APP_ROOT/deploy"
-printf 'DOMAIN=%s\n' "$DOMAIN" > .env
+
+# Never ship an empty admin token: an unset ADMIN_TOKEN makes /admin/policies
+# writable by anyone who finds the URL.
+if [ -z "${ADMIN_TOKEN:-}" ]; then
+  ADMIN_TOKEN="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  echo "ADMIN_TOKEN was not supplied, generated one:"
+  echo "  $ADMIN_TOKEN"
+  echo "  (stored in $APP_ROOT/deploy/.env; keep it, it is required for policy writes)"
+fi
+
+{
+  printf 'DOMAIN=%s\n' "$DOMAIN"
+  printf 'ADMIN_TOKEN=%s\n' "$ADMIN_TOKEN"
+  if [ -n "${DEEPSEEK_API_KEY:-}" ]; then printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"; fi
+  if [ -n "${DEEPSEEK_MODEL:-}" ]; then printf 'DEEPSEEK_MODEL=%s\n' "$DEEPSEEK_MODEL"; fi
+} > .env
+chmod 600 .env
+
 docker compose -f docker-compose.prod.yml up -d --build
 
 log "7/7 wait for the app health endpoint"

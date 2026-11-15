@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ArrowRight, HeartHandshake, Landmark, ShieldCheck, Sparkles, Accessibility } from "lucide-react";
 import { StartTask } from "@/components/start-task";
+import { PrivacyNotice } from "@/components/privacy-notice";
 
 const services = [
-  { title: "城乡居民医保", description: "参保、缴费与常见问题", icon: HeartHandshake, tone: "tone-green" },
-  { title: "高校学生资助", description: "助学金与困难学生申请", icon: Landmark, tone: "tone-blue" },
-  { title: "老年与残障服务", description: "材料准备与办理路径", icon: Accessibility, tone: "tone-orange" },
+  { key: "medical", title: "城乡居民医保", description: "参保、缴费与常见问题", icon: HeartHandshake, tone: "tone-green" },
+  { key: "student", title: "高校学生资助", description: "助学金、助学贷款与材料清单", icon: Landmark, tone: "tone-blue" },
+  { key: "elderly", title: "老年与残障服务", description: "补贴申领、材料准备与办理路径", icon: Accessibility, tone: "tone-orange" },
 ];
 
 export default function HomePage() {
@@ -48,8 +49,8 @@ export default function HomePage() {
             <span>支持 3 类公共服务</span>
           </div>
           <div className="service-grid">
-            {services.map(({ title, description, icon: Icon, tone }) => (
-              <Link className="service" href="/task/new" key={title} aria-label={`开始办理咨询：${title}`}>
+            {services.map(({ key, title, description, icon: Icon, tone }) => (
+              <Link className="service" href={`/task/new?scenario=${key}`} key={key} aria-label={`开始办理咨询：${title}`}>
                 <div className="service-top">
                   <span className={`service-icon ${tone}`}><Icon size={22} aria-hidden="true" /></span>
                   <ArrowRight className="service-arrow" size={18} aria-hidden="true" />
@@ -64,23 +65,24 @@ export default function HomePage() {
         <section className="workspace" aria-label="创建办理任务">
           <div className="compose">
             <div className="compose-head">
-              <h2>我想办一件事</h2>
+              <h2>开始办一件事</h2>
               <span className="eyebrow"><span className="eyebrow-dot" />匿名开始</span>
             </div>
-            <p className="compose-sub">可以直接描述情况，不确定的地方我们会再询问。</p>
+            <p className="compose-sub">可以直接描述情况，不确定的地方系统会再询问。</p>
             <StartTask />
           </div>
           <aside className="demo-panel">
             <h2><Sparkles size={18} aria-hidden="true" />快速体验</h2>
             <p>使用虚拟场景查看办理流程，不需要填写真实个人信息。</p>
-            <Link className="demo-button" href="/task/new?scenario=medical">医保缴费咨询 <ArrowRight size={16} aria-hidden="true" /></Link>
-            <Link className="demo-button" href="/task/new?scenario=student">学生资助申请 <ArrowRight size={16} aria-hidden="true" /></Link>
-            <Link className="demo-button" href="/task/new?scenario=elderly">老年服务材料准备 <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="demo-button" href="/task/new?scenario=medical&demo=1">医保缴费咨询 <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="demo-button" href="/task/new?scenario=student&demo=1">学生资助申请 <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="demo-button" href="/task/new?scenario=elderly&demo=1">老年服务材料准备 <ArrowRight size={16} aria-hidden="true" /></Link>
           </aside>
         </section>
+        <PrivacyNotice />
         <footer className="footer">
           <span>Smart AI · 明白办</span>
-          <span>请勿上传身份证、银行卡等真实敏感材料</span>
+          <span>办理指引仅供参考，正式办理请以主管部门口径为准</span>
         </footer>
       </main>
     </div>

@@ -38,59 +38,156 @@ JSON 字段：
 - year: 用户明确说出的四位年份，没有则为 null
 - confidence: 0 到 1 之间的数字`;
 
-export function deepseekConfigured(): boolean {
-  return Boolean(process.env.DEEPSEEK_API_KEY?.trim());
+function baseUrl(): string {
+  return (process.env.DEEPSEEK_BASE_URL?.trim() || "https://api.deepseek.com").replace(/\/+$/, "");
 }
 
-export async function analyzeTaskWithDeepSeek(message: string): Promise<DeepSeekAnalysis | null> {
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!apiKey) return null;
+function modelName(): string {
+  return process.env.DEEPSEEK_MODEL?.trim() || "deepseek-chat";
+}
 
-  const safeMessage = maskSensitiveText(message).trim().slice(0, 2000);
-  if (!safeMessage) return null;
+/**
+ * 是否具备可用的模型端点。
+ *
+ * 支持两种部署：
+ * 1) 官方/第三方 API：配置 DEEPSEEK_API_KEY；
+ * 2) 本地或私有部署（Ollama、vLLM、SGLang、LM Studio 等 OpenAI 兼容服务）：
+ *    只要配置了 DEEPSEEK_BASE_URL 即可，无需 API Key。
+ */
+export function deepseekConfigured(): boolean {
+  return Boolean(process.env.DEEPSEEK_API_KEY?.trim()) || Boolean(process.env.DEEPSEEK_BASE_URL?.trim());
+}
 
-  const baseUrl = (process.env.DEEPSEEK_BASE_URL?.trim() || "https://api.deepseek.com").replace(/\/+$/, "");
-  const model = process.env.DEEPSEEK_MODEL?.trim() || "deepseek-chat";
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+export function deepseekIsLocal(): boolean {
+  return !baseUrl().startsWith("https://api.deepseek.com");
+}
 
-  try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        max_tokens: 500,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: safeMessage },
-        ],
-      }),
-      signal: controller.signal,
-    });
+type JsonCallOptions = {
+  maxTokens?: number;
+  temperature?: number;
+  timeoutMs?: number;
+};
 
-    if (!response.ok) return null;
-    const payload: unknown = await response.json();
-    const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> })
-      ?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") return null;
-
-    let json: unknown;
+/** 本地模型常在 JSON 外包一层 ```json 围栏，或前后带解释，这里做容错提取。 */
+export function extractJson(text: string): unknown | null {
+  const trimmed = text.trim();
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  for (const candidate of [unfenced, trimmed]) {
     try {
-      json = JSON.parse(content);
+      return JSON.parse(candidate);
+    } catch {
+      // 继续尝试截取首个 JSON 对象
+    }
+  }
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(unfenced.slice(start, end + 1));
     } catch {
       return null;
     }
-    const parsed = deepseekAnalysisSchema.safeParse(json);
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
   }
+  return null;
+}
+
+type Attempt = { ok: true; value: unknown | null } | { ok: false; status: number };
+
+async function callOnce(
+  system: string,
+  user: string,
+  options: JsonCallOptions,
+  jsonMode: boolean,
+): Promise<Attempt> {
+  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  const envTimeout = Number(process.env.DEEPSEEK_TIMEOUT_MS);
+  const timeoutMs = options.timeoutMs ?? (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 8000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${baseUrl()}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: modelName(),
+        temperature: options.temperature ?? 0,
+        max_tokens: options.maxTokens ?? 500,
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      if (process.env.DEEPSEEK_DEBUG === "1") {
+        const detail = await response.text().catch(() => "");
+        console.error("[deepseek] http", response.status, detail.slice(0, 200));
+      }
+      return { ok: false, status: response.status };
+    }
+    const payload: unknown = await response.json();
+    const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> })
+      ?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") {
+      if (process.env.DEEPSEEK_DEBUG === "1") console.error("[deepseek] no content");
+      return { ok: true, value: null };
+    }
+    const value = extractJson(content);
+    if (process.env.DEEPSEEK_DEBUG === "1") {
+      console.error("[deepseek] json", value ? "ok" : "parse-failed", content.slice(0, 160));
+    }
+    return { ok: true, value };
+  } catch (error) {
+    if (process.env.DEEPSEEK_DEBUG === "1") console.error("[deepseek] fetch error", error instanceof Error ? error.message : error);
+    return { ok: false, status: 0 };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 统一的 JSON 调用入口：失败、超时、返回非 JSON 时一律返回 null，
+ * 由调用方决定兜底策略（不抛错，避免拖垮整个办理流程）。
+ *
+ * 兼容性：部分本地推理服务不支持 response_format，遇到 400/422 或解析失败会去掉该参数重试一次。
+ */
+export async function requestDeepSeekJson(
+  system: string,
+  user: string,
+  options: JsonCallOptions = {},
+): Promise<unknown | null> {
+  if (!deepseekConfigured()) return null;
+
+  const safeUser = maskSensitiveText(user).trim();
+  if (!safeUser) return null;
+
+  const first = await callOnce(system, safeUser, options, true);
+  if (first.ok && first.value !== null) return first.value;
+  if (first.ok) {
+    const retry = await callOnce(system, safeUser, options, false);
+    return retry.ok ? retry.value : null;
+  }
+  if (first.status === 400 || first.status === 422) {
+    const retry = await callOnce(system, safeUser, options, false);
+    return retry.ok ? retry.value : null;
+  }
+  return null;
+}
+
+export async function analyzeTaskWithDeepSeek(message: string): Promise<DeepSeekAnalysis | null> {
+  const safeMessage = maskSensitiveText(message).trim().slice(0, 2000);
+  if (!safeMessage || !deepseekConfigured()) return null;
+
+  const json = await requestDeepSeekJson(SYSTEM_PROMPT, safeMessage, { maxTokens: 500, temperature: 0, timeoutMs: 8000 });
+  if (!json) return null;
+  const parsed = deepseekAnalysisSchema.safeParse(json);
+  return parsed.success ? parsed.data : null;
 }

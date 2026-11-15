@@ -1,13 +1,9 @@
-import Link from "next/link";
-import { PolicyAdmin } from "@/components/policy-admin";
+import { PolicyBrowser } from "@/components/policy-browser";
 
-export default function PolicyAdminPage() {
+export default function PolicyLibraryPage() {
   return (
     <main className="main">
-      <Link href="/">← 返回首页</Link>
-      <div style={{ marginTop: 28 }}>
-        <PolicyAdmin />
-      </div>
+      <PolicyBrowser />
     </main>
   );
 }

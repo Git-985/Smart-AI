@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { MaterialReportView, type MaterialReportData } from "@/components/material-report";
 
 type ParseResult = {
   filename: string;
@@ -12,6 +13,8 @@ type ParseResult = {
   text: string;
   ocrUsed?: boolean;
   ocrConfidence?: number;
+  ocrPages?: number;
+  report?: MaterialReportData;
 };
 
 function formatBytes(bytes: number): string {
@@ -25,6 +28,7 @@ export function DocumentParser() {
   const [result, setResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [module, setModule] = useState("medical_insurance");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,6 +39,7 @@ export function DocumentParser() {
 
     const form = new FormData();
     form.append("file", file);
+    form.append("serviceType", module);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 60000);
 
@@ -65,6 +70,14 @@ export function DocumentParser() {
   return (
     <div className="document-parser">
       <form onSubmit={submit}>
+        <label className="document-module">
+          按哪个业务模块解析
+          <select value={module} onChange={(event) => setModule(event.target.value)}>
+            <option value="medical_insurance">社保缴纳</option>
+            <option value="student_aid">高校助学金</option>
+            <option value="elderly_disability_service">老年人保障</option>
+          </select>
+        </label>
         <label
           className="document-drop"
           onDragOver={(event) => event.preventDefault()}
@@ -90,7 +103,7 @@ export function DocumentParser() {
             }}
           />
           <strong>选择或拖入一个文件</strong>
-          <span>支持 PDF、DOCX、TXT、PNG、JPG，最大 10MB；图片会做本地 OCR，文件不在服务端保存。</span>
+          <span>支持 PDF、DOCX、TXT、PNG、JPG、WEBP，最大 10MB；图片和扫描版 PDF 会做本地 OCR，文件不在服务端保存。</span>
         </label>
         {file && <p className="document-file">已选择：{file.name}（{formatBytes(file.size)}）</p>}
         <div className="document-actions">
@@ -114,13 +127,18 @@ export function DocumentParser() {
               复制文本
             </button>
           </div>
-          <p className="document-meta">
-            {result.mimeType} · {formatBytes(result.size)}
-            {result.pages ? ` · ${result.pages} 页` : ""} · 提取 {result.textLength} 字
-            {result.ocrUsed ? ` · OCR 置信度 ${result.ocrConfidence ?? 0}%` : ""}
-            {result.truncated ? "（已截取前 20,000 字）" : ""}
-          </p>
-          <pre className="document-text">{result.text}</pre>
+          {result.report ? (
+            <MaterialReportView report={result.report} />
+          ) : (
+            <p className="document-meta">
+              {result.mimeType} · {formatBytes(result.size)}
+              {result.pages ? ` · ${result.pages} 页` : ""} · 提取 {result.textLength} 字
+            </p>
+          )}
+          <details className="document-raw">
+            <summary>查看提取到的原文（{result.textLength} 字{result.truncated ? "，已截取" : ""}）</summary>
+            <pre className="document-text">{result.text}</pre>
+          </details>
         </article>
       )}
     </div>

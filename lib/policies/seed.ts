@@ -1,13 +1,14 @@
 import type { PolicyEvidence } from "@/lib/rag/types";
+import { expandedPolicies } from "@/lib/policies/seed-expansion";
 
 /**
- * 内置政策库（30 条）。
+ * 内置政策库基线（30 条）+ 扩充库（见 seed-expansion.ts，33 条），合并后共 63 条。
  *
  * - region 为“全国”的条目是国家层面的政策摘要，地方办理以当地经办机构口径为准。
  * - 每条都保留官方来源入口，便于核验。
  * - 语料可导入、可管理，摘要与正式法律文本分开呈现。
  */
-export const seedPolicies: PolicyEvidence[] = [
+const basePolicies: PolicyEvidence[] = [
   {
     policyId: "national-medical-2026-01",
     title: "城乡居民基本医疗保险参保缴费（全国政策摘要）",
@@ -401,3 +402,5 @@ export const seedPolicies: PolicyEvidence[] = [
     applicabilityReason: "适用于首次申办、换领或补办残疾人证；通常需要照片、身份证明和指定医院评定。",
   },
 ];
+
+export const seedPolicies: PolicyEvidence[] = [...basePolicies, ...expandedPolicies];

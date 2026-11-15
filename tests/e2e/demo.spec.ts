@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("首页到指南、元数据检查、家属协助与刷新恢复", async ({ page }) => {
+test("首页到指南、材料解析与刷新恢复", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/");
@@ -12,28 +12,28 @@ test("首页到指南、元数据检查、家属协助与刷新恢复", async ({
   await page.getByLabel("所在省、市、区").fill("演示地区");
   await page.getByLabel("办理年份").fill("2026");
   await page.getByRole("button", { name: "继续梳理" }).click();
-  await expect(page.locator(".evidence-title").first()).toContainText("医疗保险");
+  await expect(page.locator(".evidence-title").first()).toContainText(/医保|医疗保险/);
   await page.reload();
-  await expect(page.locator(".evidence-title").first()).toContainText("医疗保险");
+  await expect(page.locator(".evidence-title").first()).toContainText(/医保|医疗保险/);
   await page.getByRole("button", { name: "重新检查任务" }).click();
-  await expect(page.getByRole("status").last()).toContainText("已完成政策检索");
+  await expect(page.locator(".guidance-panel")).toBeVisible();
 
-  // Arbitrary bytes are never inspected: the UI and API must say metadata-only.
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "fixture.png", mimeType: "image/png", buffer: Buffer.from("metadata-only fixture"),
+  // 材料上传后会生成结构化解析报告（文本文件走文本层，不涉及 OCR）
+  await page.getByRole("button", { name: "上传材料解析" }).click();
+  await page.locator('.upload-dialog input[type="file"]').setInputFiles({
+    name: "材料清单.txt", mimeType: "text/plain", buffer: Buffer.from("身份证 户口簿 社保卡 缴费凭证 2026年度 医保局"),
   });
-  await expect(page.locator(".material-card")).toContainText("未执行 OCR");
-  await page.getByLabel("我已了解上述办理范围").check();
+  await expect(page.locator(".upload-list li")).toHaveCount(1);
+  await page.getByRole("button", { name: "开始上传" }).click();
+  await expect(page.locator(".material-report")).toContainText("材料解析报告");
+  await page.locator(".material-report-details > summary").click();
+  await expect(page.locator(".material-report .check-hit").first()).toBeVisible();
+  await page.getByLabel("已了解上述办理范围").check();
   await page.getByRole("button", { name: "确认并记录" }).click();
   await expect(page.getByRole("button", { name: "已记录确认" })).toBeDisabled();
   const taskUrl = page.url();
   await page.getByRole("link", { name: "查看办理指南" }).click();
   await expect(page.getByRole("heading", { name: "现在该做什么" })).toBeVisible();
-  await page.getByRole("link", { name: "家属协助清单" }).click();
-  const first = page.getByRole("checkbox").first();
-  await first.check({ force: true });
-  await page.reload();
-  await expect(page.getByRole("checkbox").first()).toBeChecked();
   await page.goto(taskUrl);
   await expect(page.getByRole("button", { name: "已记录确认" })).toBeVisible();
   expect(errors).toEqual([]);

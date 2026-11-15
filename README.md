@@ -1,237 +1,370 @@
-# Smart AI（明白办）
+# Smart AI · 明白办
 
-面向老年人、残障人士与低数字素养人群的无障碍公共服务办理引导平台。
+> 把“办事”说明白：面向老年人、残障人士与低数字素养人群的公共服务办理引导平台。
 
-项目把复杂的公共服务咨询拆解为一条**可确认、可追溯的任务**：识别事项、追问地区与年份、检索政策证据、检查材料、提示风险并交由用户确认。没有适用证据时明确拒答，不给出未经核实的结论。
+![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)
+![SQLite](https://img.shields.io/badge/Storage-SQLite-044a64)
+![Tests](https://img.shields.io/badge/tests-25%20unit%20%2B%2010%20e2e-brightgreen)
 
-完整参赛版覆盖三类场景：城乡居民医保参保缴费、高校学生资助申请、老年与残障人士公共服务材料办理。系统内置 30 条三场景政策库，使用 SQLite 持久化任务与政策，支持图片 OCR、政策库管理、证据链、风险确认和办理指南导出。
+Smart AI（明白办）不是“政策问答机器人”，而是一条**可确认、可追溯的办理任务**：
+先用一句话或材料说清要办什么，再通过六个点选问题补齐关键信息，随后检索本地政策库、
+核对材料、给出从第一步到最后一步的办理顺序，并在涉及资格、费用时要求用户知情确认。
+没有可用证据时明确拒答，不编造政策、金额或地点。
+
+覆盖三类高频事项：**城乡居民医保参保缴费、高校学生资助、老年与残障服务**。
+
+---
+
+## 目录
+
+- [项目简介](#项目简介)
+- [核心能力](#核心能力)
+- [快速开始](#快速开始)
+- [技术架构](#技术架构)
+- [AI 技术方案](#ai-技术方案)
+- [无障碍与隐私设计](#无障碍与隐私设计)
+- [目录结构](#目录结构)
+- [环境变量](#环境变量)
+- [脚本与测试](#脚本与测试)
+- [部署](#部署)
+- [已知边界](#已知边界)
+- [团队信息](#团队信息)
+- [文档](#文档)
+
+---
 
 ## 项目简介
 
 ### 背景
 
-公共服务政策术语密集，地区、年份、人群条件往往藏在附件和脚注里；用户常常不知道先交什么、去哪里办、材料是否齐全。老年人、残障人士和低数字素养人群还面临字体小、操作复杂、担心证件泄露等额外门槛。
+公共服务政策术语密集，地区、年份、人群条件往往藏在附件和脚注里。真正办事的人常常卡在三个问题：
 
-### 主要功能
+1. 我这件事到底归哪个部门、叫什么名字？
+2. 需要带什么，少一样是不是要再跑一趟？
+3. 网上说的和窗口说的不一样，我该信谁？
 
-- **事项识别与追问**：信息不全时先追问地区和年份，不直接下结论。
-- **DeepSeek 事项解析**：配置 API Key 后，用 DeepSeek 识别事项类型、抽取已提供事实并生成一句话摘要；调用异常时自动回退规则。
-- **三场景政策库与证据链**：内置 30 条政策摘要，覆盖居民医保、学生资助、老年与残障服务；证据包含事项、地区、有效期、条款、来源和适用理由。
-- **无证据拒答（fail-closed）**：检索不到适用证据时，明确告知无法确认，不编造政策；跨地区时返回全国政策摘要并提示核对地方标准。
-- **SQLite 持久化**：任务、会话归属、审计事件和政策库写入 SQLite；服务重启后任务仍可恢复。
-- **图片 OCR 与文档解析**：`/documents` 支持 PDF、DOCX、TXT 文本提取和 PNG/JPG/WEBP 图片 OCR；文件只在请求内读取，不保存。
-- **材料元数据检查**：任务工作台只校验浏览器提供的文件类型与大小，不接收文件内容。
-- **风险确认与最小审计**：医疗、费用、资格权益等场景必须人工确认；审计只记录任务 ID、事件类型、风险级别与时间。
-- **办理指南导出**：结果页提供打印/导出 PDF，包含步骤、材料、证据和风险提示。
-- **政策库管理**：`/admin/policies` 可新增、删除政策条目；配置 `ADMIN_TOKEN` 后写操作需要口令。
-- **无障碍支持**：100%–175% 字号、高对比度、键盘操作、语音输入/播报降级、家属协助清单。
-- **匿名会话隔离**：HttpOnly Cookie；任务页面与变更接口校验会话归属。
+老年人、残障人士和低数字素养人群还面临字号小、按钮密、流程长、担心证件泄露等额外门槛。
 
-### 使用说明
+### 我们做了什么
 
-- 内置政策为公开政策摘要，来源链接保留在每条证据中，便于核验。
-- 内置数据不包含真实个人信息；不要上传真实证件、银行卡、病历等敏感材料。
-- 用户确认只代表知情，**不等于正式提交**；系统不代替任何政府窗口。
-- 系统同时保留规则解析，DeepSeek 调用异常时自动兜底，功能仍可运行。
+把上述问题拆成一条有状态的流程：
+
+```text
+描述情况 / 上传材料
+      ↓
+识别事项（模型 + 规则双轨）
+      ↓
+六个点选问题（谁办、哪类、人在哪、办哪年、特殊身份、怎么去办）
+      ↓
+补充说明（选填，可自由输入）
+      ↓
+本地政策库检索（事项 + 地区 + 时间硬过滤）
+      ↓
+材料核对 + 从第一步到最后一步的办理顺序（每步：做什么 / 去哪办 / 带什么 / 注意）
+      ↓
+人工确认（知情，不等于提交）
+      ↓
+办理指南（可打印 / 导出 PDF）
+```
+
+### 目标用户
+
+| 人群 | 典型困难 | 对应设计 |
+|---|---|---|
+| 老年人 | 字号小、不会打字、怕点错 | 175% 字号、语音输入/播报、单列大按钮、六问点选 |
+| 残障人士 | 行动不便、需要代办 | 代办路径、上门/代报提示、地图定位办理点 |
+| 学生家庭 | 不知道资助类型和材料 | 助学类型分流、困难认定提示、材料清单核对 |
+| 低数字素养人群 | 不会写长句、看不懂术语 | 一句话起头、材料反向生成问题、步骤化中文 |
+
+---
+
+## 核心能力
+
+| 能力 | 说明 | 入口 |
+|---|---|---|
+| 事项识别 | DeepSeek 结构化识别事项/地区/年份；无 Key 或异常时回退规则，不阻断使用 | `/task/new` |
+| 六问澄清 + 补充说明 | 每题 4–5 个可点选项，最后一页可自由补充；答完才展示结论 | 任务工作台 |
+| 个性化办理顺序 | 按回答插入步骤：异地备案、参保资助、代办材料、评残前置等 | 任务工作台 |
+| 材料上传与解析 | 弹窗批量选文件/图片、逐项勾选、开始上传；PDF/DOCX/TXT 抽文字，扫描件渲染后 OCR | 上传弹窗 |
+| 材料核对报告 | 按模块列出关键材料命中情况、识别到的日期/金额/电话、缺失项与下一步 | 报告卡片 |
+| 政策证据链 | 每条结论附本地库条目标题、地区、有效期、原文链接 | 证据面板 |
+| 联网核验 | Tavily / 博查 / Serper，无 Key 走搜狗；结果只作线索，与本地证据分开标注 | 解答底部 |
+| 地图落点 | “去哪办”按地点类型 + 当前城市生成高德搜索链接，不编造门牌号 | 每个办理步骤 |
+| 政策资料库 | 只读浏览，大字号、按事项筛选、可跳原文；写接口默认关闭 | `/admin/policies` |
+| 风险确认 | 医疗、费用、资格类必须勾选“已了解办理范围”后才能记录 | 证据面板 |
+| 办理指南 | 打印 / 导出 PDF，含步骤、材料、依据、风险 | `/result/[id]` |
+| 无障碍 | 100%–175% 字号、高对比度、键盘焦点、跳过导航、语音播报降级 | `/onboarding` |
+
+---
+
+## 快速开始
+
+### 环境要求
+
+| 依赖 | 版本 | 说明 |
+|---|---|---|
+| Node.js | ≥ 22.12 | 使用内置 `node:sqlite`，无需额外数据库 |
+| npm | ≥ 10 | 使用 `npm ci` 复现依赖 |
+| 浏览器 | Chrome / Edge / Safari 最新版 | 语音功能建议 Chrome / Edge |
+
+### 安装与启动
+
+```bash
+git clone <your-repo-url> smart-ai
+cd smart-ai
+cp .env.example .env.local     # 不填 Key 也能跑：自动使用规则引擎
+npm ci
+npm run dev                    # http://localhost:3000
+```
+
+非技术用户可以直接双击：
+
+- Windows：`start.bat`（调用 `start.ps1`）
+- macOS / Linux：`./start.sh`
+
+脚本会自动检查 Node、安装依赖、挑一个空闲端口并打开浏览器。
+
+### 生产构建
+
+```bash
+npm run build
+npm run start                  # 需要可写目录存放 SQLite
+```
+
+### 验证是否正常
+
+```bash
+curl -s localhost:3000/api/health
+# {"status":"ok","storage":"sqlite","policyCount":63,"ocrEnabled":true,...}
+```
+
+---
 
 ## 技术架构
 
 ### 总体架构
 
 ```mermaid
-flowchart LR
-  U[用户 / 家属] --> UI[Next.js App Router 无障碍界面]
-  UI --> T[任务 API]
-  UI --> C[对话与追问 API]
-  UI --> D[材料元数据 API]
-  UI --> P[文档解析 API]
-  UI --> A[确认与审计 API]
-  UI --> K[政策库管理 API]
+flowchart TB
+  subgraph 浏览器
+    UI[Next.js App Router 页面]
+    A11Y[无障碍设置 / 语音]
+  end
 
-  T --> AI[DeepSeek 事项识别 / 摘要]
-  T --> S[(SQLite 任务 / 政策 / 审计)]
-  AI --> S
-  C --> W[规则状态机]
-  W --> R[30 条三场景政策库]
-  R --> F[事项 / 地区 / 时间过滤]
-  F --> E[证据卡 / 无证据拒答]
+  subgraph Next.js 服务端
+    API[Route Handlers]
+    DOMAIN[任务 / 解答 / 材料报告领域逻辑]
+    AI[DeepSeek 结构化解析]
+    RAG[本地政策库检索]
+    WEB[联网核验（可选）]
+    DOC[文档解析 + OCR]
+  end
 
-  D --> M[MIME + 文件大小检查]
-  P --> X[PDF / DOCX / TXT 文本提取]
-  P --> O[图片 OCR: Tesseract.js]
-  A --> H[风险确认 + 最小审计]
-  K --> R
+  DB[(SQLite<br/>tasks / policies / audit)]
+  LLM[(DeepSeek / 兼容端点)]
+  SEARCH[(Tavily / 博查 / Serper / 搜狗)]
 
-  LLM[DeepSeek API] -. 配置后接入 .-> AI
+  UI --> API
+  API --> DOMAIN
+  DOMAIN --> AI --> LLM
+  DOMAIN --> RAG --> DB
+  DOMAIN --> WEB --> SEARCH
+  DOC --> RAG
+  DOMAIN --> DB
 ```
+
+### 分层
+
+| 层 | 位置 | 职责 |
+|---|---|---|
+| 页面层 | `app/**/page.tsx` | 路由、服务端取任务、首屏渲染 |
+| 交互层 | `components/` | 任务工作台、上传弹窗、报告、政策库、无障碍 |
+| 接口层 | `app/api/**/route.ts` | 入参校验（Zod）、会话归属、错误码 |
+| 领域层 | `lib/demo-data.ts`、`lib/ai/guidance.ts` | 任务状态机、六问生成、步骤个性化 |
+| 检索层 | `lib/rag/`、`lib/policies/` | 事项/地区/时间过滤 + 关键词相关度 |
+| 文档层 | `lib/documents/` | PDF/DOCX/TXT 解析、扫描件 OCR、材料报告 |
+| 基础设施 | `lib/store.ts`、`lib/security/` | SQLite、会话、脱敏、审计 |
 
 ### 技术栈
 
-- **前端与服务端**：Next.js 15（App Router）、React 19、TypeScript
-- **接口**：Next.js Route Handlers，Zod 校验输入
-- **AI**：DeepSeek `deepseek-chat`，JSON 结构化输出；异常时规则回退
-- **数据**：Node 内置 `node:sqlite`，任务/政策/审计持久化到 `.data/smart-ai.sqlite`
-- **文档解析**：`pdf-parse`（PDF）、`mammoth`（DOCX）、`tesseract.js`（图片 OCR）
-- **政策库**：30 条三场景政策摘要，支持管理端新增/删除与来源链接
-- **测试**：Vitest 单元测试、Playwright 端到端测试、RAG 10 组评测
-- **构建与部署**：Next.js standalone、Docker、Docker Compose、Caddy
+| 类别 | 选型 | 理由 |
+|---|---|---|
+| 框架 | Next.js 15（App Router） | 页面与接口同仓，Server Component 直接读库，减少一层后端 |
+| 语言 | TypeScript 5.8 | 端到端类型；接口入参用 Zod 双重校验 |
+| UI | React 19 + 手写 CSS | 不引 UI 库，保证大字号/高对比下可控 |
+| 存储 | SQLite（`node:sqlite`） | 零运维、单文件、可随容器挂载；评测场景足够 |
+| 模型 | DeepSeek Chat（OpenAI 兼容） | 中文与 JSON 稳定、成本低、可替换为本地 Ollama/vLLM |
+| 检索 | 自建混合检索 | 政策量级小（63 条），硬过滤 + 关键词比向量库更可控、可解释 |
+| 文档 | `pdf-parse` / `mammoth` / `tesseract.js` | 纯本地解析，文件不出服务器 |
+| 测试 | Vitest + Playwright | 单测快、e2e 覆盖真实交互 |
 
-### 工程规范
-
-- TypeScript + ESLint；API 输入统一使用 Zod 校验。
-- 页面、组件、业务库、接口分层；关键边界有单元测试与端到端测试覆盖。
-- 提交信息使用 `feat:`、`fix:`、`docs:`、`chore:` 前缀。
-- 仓库保留完整 Git 提交历史，可追溯各阶段开发内容。
-
-### 目录结构
+### 数据模型
 
 ```text
-app/                 页面与 Route Handlers（含 /documents、/admin/policies、/api/documents/parse）
-components/          任务工作台、无障碍设置、文档解析、政策管理、家属协助等组件
-lib/ai/              Agent 状态流、DeepSeek 调用、结构化输出与提示词
-lib/documents/       PDF / DOCX / TXT 文本提取与图片 OCR
-lib/policies/        30 条三场景政策库种子
-lib/rag/             政策证据类型与地区/时间/关键词检索
-lib/security/        PII 脱敏、风险规则、会话与审计
-lib/store.ts         SQLite 数据访问层
-lib/api/             API 输入 schema
-scripts/             启动、RAG 评测与性能脚本
-tests/               单元测试、端到端测试与 RAG 评测用例
-deploy/              Docker Compose、Caddy、部署脚本
-docs/final/          技术文档、架构图、评测报告、验收清单
+tasks      id / owner / serviceType / region / year / status / message
+           missingFields[] / evidence[] / plan[] / guidance(JSON) / userConfirmed
+policies   policyId / title / serviceType / region / effectiveAt / expiredAt
+           quote / sourceUrl / section / relevance / applicabilityReason
+audit      只记录 taskId / event / riskLevel / createdAt（不含正文）
 ```
 
-## 安装与运行指南
+---
 
-### 环境要求
+## AI 技术方案
 
-- Node.js 22.12 或更高版本（推荐 22 LTS 或 24 LTS；仓库提供 `.nvmrc`）
-- npm 10 或更高版本
-- Docker 与 Docker Compose（用于容器部署）
-- 运行数据默认写入 `.data/smart-ai.sqlite`；无需安装 PostgreSQL
+> 详细论证见 [技术文档](docs/technical-report.pdf)（PDF，含选型对比、提示词约束、降级策略与创新点）。
 
-### 安装
+### 三条轨道，保证“没 Key 也能用”
 
-```bash
-npm ci
+| 轨道 | 触发条件 | 作用 |
+|---|---|---|
+| 模型轨道 | 配置 `DEEPSEEK_API_KEY` 或 `DEEPSEEK_BASE_URL` | 事项识别、六问生成、步骤个性化 |
+| 规则轨道 | 未配置、超时、返回非法 JSON | 同样的流程，使用内置规则模板，界面明确标注“规则兜底” |
+| 证据轨道 | 始终启用 | 本地政策库是唯一政策依据；模型只能基于检索结果组织语言 |
+
+### 提示词与输出约束
+
+- **JSON-only**：系统提示要求只输出 JSON，服务端用 Zod 校验后再落库；非法输出直接回退规则。
+- **不得编造**：提示词明确“不提供政策结论、金额、资格判断、链接”；没有证据时输出“无法确认”。
+- **抗注入**：用户文本只作为普通文本处理，出现“忽略以上指令”等不影响任务。
+- **脱敏先行**：进入模型前，手机号、身份证号等由 `lib/security/pii.ts` 掩码。
+- **超时与截断**：默认 8s 超时（可调），上下文只带命中的 6 条证据，控制成本与延迟。
+
+### 检索策略
+
+```text
+事项硬过滤 → 地区上下级匹配（省/市/区）→ 有效期过滤
+          → 地方条目优先 + 全国条目兜底
+          → 关键词命中加权（relevance*0.72 + hits*0.05 + 地区加成）
 ```
 
-如果 npm 下载较慢，可临时切换到国内镜像（仅影响本机 npm 配置）：
+- 跨事项不串库：查学生资助不会返回医保条目。
+- 无适用证据时 fail-closed：明确告知“没有找到适用政策”，而不是给一个像样的答案。
+- 评测：10 组用例（覆盖地区、时间、跨事项、无证据）通过率 100%，见 [评测报告](docs/evaluation.md)。
 
-```bash
-npm config set registry https://registry.npmmirror.com
-npm ci
+### 材料解析
+
+```text
+PDF → 抽文字层（pdf-parse）
+   → 有效字符 < 30 视为扫描件 → 渲染前 3 页（@napi-rs/canvas）→ tesseract OCR
+图片 → 直接 OCR
+DOCX/TXT → 直接抽取
+      ↓
+按材料所属模块生成核对报告：关键材料命中 / 日期金额电话 / 缺失项 / 下一步
 ```
 
-安装完成后如需要，可用 `npm config set registry https://registry.npmjs.org` 还原。
+OCR 只处理前 3 页并在报告中标注，避免一次请求过久；文件仅在请求内读取，不落盘。
 
-### 一键启动（推荐）
+### 成本与稳定性
 
-- Windows：双击 `start.bat`
-- macOS / Linux：运行 `./start.sh`
+- 规则兜底意味着**默认零模型成本也能完整演示**。
+- 联网检索结果缓存 10 分钟，失败静默降级为“本次未启用联网核验”。
+- 模型调用失败不重试轰炸，直接回退规则并在界面标注生成方式。
 
-首次运行会自动执行 `npm ci`，之后直接启动开发服务器并打开浏览器；端口 3000 被占用时会自动换到下一个可用端口。
+---
 
-如果不想自动打开浏览器：
+## 无障碍与隐私设计
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\start.ps1 -NoBrowser
+- **字号**：100% / 125% / 150% / 175%，通过 `data-font-scale` 全局缩放。
+- **对比度**：高对比模式覆盖正文、边框、按钮。
+- **键盘**：跳过导航、可见焦点环、弹窗 ESC 关闭与焦点管理。
+- **语音**：语音输入（Web Speech API）与语音播报（SpeechSynthesis）均带降级提示。
+- **隐私**：默认启用“不要上传身份证/银行卡”提示；输入先脱敏；审计只存任务 ID、事件、风险级别与时间。
+- **只读知识库**：政策写接口默认关闭（403），配置 `ADMIN_TOKEN` 后才可带口令维护。
+
+---
+
+## 目录结构
+
+```text
+app/
+  page.tsx                 首页：三类事项入口 + 上传 + 开始办理
+  task/new/                新建任务（支持 ?scenario= 与材料带入）
+  task/[id]/               任务工作台（六问、步骤、材料、地图、确认）
+  result/[id]/             办理指南（打印/PDF）
+  documents/               独立材料解析页
+  onboarding/              无障碍设置
+  admin/policies/          只读政策资料库
+  api/                     tasks / chat / confirmations / documents / policies / health
+components/                任务工作台、上传弹窗、材料报告、政策库、隐私提示
+lib/
+  ai/                      DeepSeek 调用、六问生成、联网核验
+  rag/                     混合检索
+  documents/               解析、OCR、材料报告、地区年份提取
+  geo/                     地图搜索链接
+  policies/                63 条政策种子（基线 + 扩充）
+  security/                会话、脱敏、审计、风险
+  store.ts                 SQLite 访问
+docs/                      技术文档、部署、接口、环境、评测
+scripts/                   启动/性能/评测脚本
+tests/                     单元测试、端到端测试、评测用例
+deploy/                    Docker Compose + Caddy 生产部署
 ```
 
-### 环境配置
-
-不配置真实密钥也可以运行；需要启用 DeepSeek、管理口令或自定义数据库路径时：
-
-```powershell
-Copy-Item .env.example .env
-```
-
-或：
-
-```bash
-cp .env.example .env
-```
-
-### 启动
-
-开发模式：
-
-```bash
-npm run dev
-```
-
-访问 `http://localhost:3000`，场景入口为 `/demo`。
-
-生产模式启动：
-
-```bash
-npm run build
-node scripts/start-demo.mjs
-```
-
-访问 `http://127.0.0.1:3107`。
-
-Docker 单实例：
-
-```bash
-docker compose up -d --build app
-```
-
-### 验证
-
-```bash
-npm run lint
-npm test
-npm run build
-npm run typecheck
-npx playwright install chromium
-npm run test:e2e
-npx tsx scripts/evaluate-rag.ts
-```
-
-当前结果：22 项单元测试、20 项 Playwright 用例（桌面与 390px 移动端）、RAG 10/10 评测通过。覆盖追问、跨地区无证据、会话隔离、超时重试、文件元数据、文档文本提取、图片 OCR、政策库检索与确认不完成等边界。
-
-### 部署
-
-生产单实例（Docker Compose + Caddy 自动 HTTPS）见 [`deploy/README.md`](deploy/README.md)。
-
-运行时使用 SQLite，任务与政策在服务重启后保留；Docker Compose 已为 `/app/data` 配置持久化卷。
+---
 
 ## 环境变量
 
-模板文件：`.env.example`。DeepSeek 调用异常时自动回退规则解析。
+完整说明见 [docs/environment.md](docs/environment.md)。最小可用：不配置任何变量也能运行（规则模式）。
 
-| 变量 | 必填 | 说明 |
-|---|---|---|
-| `SMART_AI_DB_PATH` | 否 | SQLite 文件路径，默认 `.data/smart-ai.sqlite` |
-| `ADMIN_TOKEN` | 否 | 政策库写操作口令；配置后新增/删除需携带该口令 |
-| `DEEPSEEK_API_KEY` | 否 | DeepSeek 密钥；配置后启用事项识别与摘要 |
-| `DEEPSEEK_BASE_URL` | 否 | 默认 `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | 否 | 默认 `deepseek-chat` |
-| `NEXT_PUBLIC_APP_URL` | 否 | 部署后的公开访问地址 |
+| 变量 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| `SMART_AI_DB_PATH` | 否 | `.data/smart-ai.sqlite` | SQLite 文件路径，需可写 |
+| `DEEPSEEK_API_KEY` | 否 | — | 模型 Key；不填则使用规则引擎 |
+| `DEEPSEEK_BASE_URL` | 否 | `https://api.deepseek.com` | 兼容端点（Ollama/vLLM 只填此项） |
+| `DEEPSEEK_MODEL` | 否 | `deepseek-chat` | 模型名 |
+| `DEEPSEEK_TIMEOUT_MS` | 否 | `8000` | 单次调用超时 |
+| `TAVILY_API_KEY` / `BOCHA_API_KEY` / `SERPER_API_KEY` | 否 | — | 联网核验；任选其一 |
+| `WEB_SEARCH_PROVIDER` | 否 | 自动 | `tavily`/`bocha`/`serper`/`sogou`/`bing` |
+| `WEB_SEARCH_DISABLED` | 否 | — | `true` 时完全关闭联网 |
+| `ADMIN_TOKEN` | 否 | — | 政策库写接口口令；不配置则写接口 403 |
+| `NEXT_PUBLIC_APP_URL` | 否 | `http://localhost:3000` | 对外地址，用于打印页脚等 |
 
-`DEEPSEEK_API_KEY` 只在服务端读取，不会下发到浏览器；不要将真实密钥、真实证件或上传文件提交到仓库。
+> 任何 Key 都不提交到仓库；`.env*` 已在 `.gitignore` 中排除，仅保留 `.env.example`。
 
-## 依赖清单
+---
 
-核心运行依赖（版本以 `package.json` 为准）：
+## 脚本与测试
 
-- `next`、`react`、`react-dom`
-- `zod`、`lucide-react`
-- `pdf-parse`、`mammoth`（文档文本解析）
-- `tesseract.js`（图片 OCR，含中文语言包）
+| 命令 | 说明 |
+|---|---|
+| `npm run dev` | 本地开发 |
+| `npm run build` / `npm run start` | 生产构建与启动 |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript 检查 |
+| `npm test` | Vitest 单元测试（25 项） |
+| `npm run test:e2e` | Playwright 端到端（10 条，桌面 + 移动各一遍） |
+| `npm run test:performance` | 本地并发性能采样（输出到 `test-results/`） |
 
-开发与测试依赖：
+测试覆盖：任务状态与失败兜底、会话隔离、接口错误码、政策过滤（地区/时间/跨事项）、文档解析、地图关键词、脱敏与审计。
+CI（`.github/workflows/ci.yml`）在 push / PR 时执行 lint、test、build、typecheck。
 
-- `typescript`、`eslint`、`eslint-config-next`
-- `vitest`、`@playwright/test`
-- `tsx`、`@types/node`、`@types/react`、`@types/react-dom`、`@types/pdf-parse`
+---
 
-依赖锁定文件为 `package-lock.json`，安装时使用 `npm ci` 以保证可复现。
+## 部署
 
-## 演示视频
+- 本地：见[快速开始](#快速开始)。
+- Docker + Caddy（自动 HTTPS）：见 [docs/deployment.md](docs/deployment.md) 与 [deploy/README.md](deploy/README.md)。
+- 在线演示：[https://wbapp-551hbcyvpjrcfwqseim6oe.app.workbuddy.host/?sharecode=6HHKLUBS53](https://wbapp-551hbcyvpjrcfwqseim6oe.app.workbuddy.host/?sharecode=6HHKLUBS53)（已接入 DeepSeek，首次生成约 5–9 秒）
 
-- 演示视频：随提交材料提供 `SmartAI-明白办-演示视频.mp4`。
+```bash
+docker compose up -d --build
+# 或使用生产编排
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+```
+
+---
+
+## 已知边界
+
+1. 政策库为 63 条公开摘要，覆盖全国与部分省市；未收录地区会退回全国条目并提示核对地方标准。
+2. OCR 只处理前 3 页，扫描件清晰度会影响识别率；报告仅用于自查，不替代官方审核。
+3. 地图给的是“该城市 + 地点类型”的搜索结果，具体窗口地址以官方公布为准。
+4. 系统不代替任何政府窗口，不提交正式申请；“确认”只代表知情。
+5. 单实例部署：SQLite 与进程内缓存，不支持多副本横向扩展。
+
+---
 
 ## 团队信息
 
@@ -240,12 +373,26 @@ npx tsx scripts/evaluate-rag.ts
 | 团队名称 | jhjnb |
 | 团队编号 | 41573 |
 | 所属院校 | 广州商学院 |
-| 参赛组别 | B组 |
+| 参赛组别 | B 组 |
 | 团队人数 | 3 人 |
 
-## 相关文档
+---
 
-- [技术文档](docs/final/technical-document.md)
-- [架构图](docs/final/architecture.md)
-- [RAG 评测报告](docs/final/evaluation.md)
-- [验收清单](docs/final/acceptance-checklist.md)
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [技术文档（PDF）](docs/technical-report.pdf) | 需求、架构、AI 方案、实现、测试、创新点（≤30 页） |
+| [接口说明](docs/api.md) | 8 个 Route Handler 的入参、出参与错误码 |
+| [环境与依赖](docs/environment.md) | 环境变量、依赖清单、最小配置 |
+| [部署指南](docs/deployment.md) | 本地、Docker、Caddy、公网 |
+| [评测报告](docs/evaluation.md) | 检索用例、通过率、性能采样 |
+| [文档索引](docs/README.md) | 全部文档与阅读顺序 |
+
+---
+
+## 许可与使用
+
+- 代码仅用于参赛评审与学习交流，未经团队同意请勿用于商业用途。
+- 政策摘要来自公开渠道，版权归原发布机构；引用时请以官方原文为准。
+- 请勿在演示环境上传真实身份证、银行卡、病历等敏感材料。

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { DocumentParseError, parseDocument } from "@/lib/documents/parse";
+import { buildMaterialReport } from "@/lib/documents/report";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
@@ -26,7 +28,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json(await parseDocument(file));
+    const serviceType = String(form.get("serviceType") ?? "").trim();
+    const document = await parseDocument(file);
+    return NextResponse.json({ ...document, report: buildMaterialReport(document, serviceType) });
   } catch (error) {
     if (error instanceof DocumentParseError) {
       return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });

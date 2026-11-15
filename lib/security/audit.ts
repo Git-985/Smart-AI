@@ -2,8 +2,8 @@ import { listAuditRows, recordAuditRow } from "@/lib/store";
 
 export type AuditEvent = {
   taskId: string;
-  eventType: "POLICY_USED" | "NO_EVIDENCE" | "TOOL_CALLED" | "USER_CONFIRMED" | "RISK_TRIGGERED" | "MODEL_RETRY";
-  metadata: { riskLevel?: "LOW" | "MEDIUM" | "HIGH" };
+  eventType: "POLICY_USED" | "NO_EVIDENCE" | "TOOL_CALLED" | "USER_CONFIRMED" | "RISK_TRIGGERED" | "MODEL_RETRY" | "FOLLOW_UP";
+  metadata: { riskLevel?: "LOW" | "MEDIUM" | "HIGH"; kind?: "question" | "other" };
   createdAt: Date;
 };
 

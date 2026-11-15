@@ -9,6 +9,14 @@
 #
 # Deploy with a key:
 #   powershell -ExecutionPolicy Bypass -File .\deploy\deploy.ps1 -Server 1.2.3.4 -Domain demo.example.com -KeyPath C:\keys\smartai.pem
+#
+# Deploy with secrets (recommended: keeps them out of the command line of the remote host):
+#   powershell -ExecutionPolicy Bypass -File .\deploy\deploy.ps1 -Server 1.2.3.4 -Domain demo.example.com `
+#     -AdminToken 'a-long-random-string' -DeepseekKey 'sk-xxxx'
+#
+# Cloud VMs that disallow root login (Oracle Cloud, AWS, GCP) use a normal user + sudo:
+#   powershell -ExecutionPolicy Bypass -File .\deploy\deploy.ps1 -Server 152.70.x.x -User ubuntu -Sudo `
+#     -Domain 152.70.x.x.sslip.io -KeyPath C:\keys\ssh-key.key
 
 [CmdletBinding()]
 param(
@@ -18,6 +26,9 @@ param(
   [int]$SshPort = 22,
   [string]$KeyPath = '',
   [string]$Project = '',
+  [string]$AdminToken = '',
+  [string]$DeepseekKey = '',
+  [switch]$Sudo,
   [switch]$PackageOnly
 )
 
@@ -37,8 +48,8 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 
 $roboArgs = @(
   $project, $stage, '/E',
-  '/XD', 'node_modules', '.next', '.git', 'playwright-report', 'test-results', 'deploy',
-  '/XF', '.env', '*.tsbuildinfo',
+  '/XD', 'node_modules', '.next', '.git', '.data', '.workbuddy', '.idea', 'playwright-report', 'test-results', 'deploy',
+  '/XF', '.env', '.env.*', '*.sqlite', '*.sqlite-shm', '*.sqlite-wal', '*.tsbuildinfo',
   '/NFL', '/NDL', '/NJH', '/NJS', '/NP'
 )
 robocopy @roboArgs | Out-Null
@@ -91,12 +102,29 @@ if ($KeyPath) {
   $scpOpts += @('-i', $KeyPath)
 }
 
-Write-Host "==> Uploading package and bootstrap to ${User}@${Server}"
-& scp @scpOpts $zip (Join-Path $deployDir 'bootstrap.sh') "${User}@${Server}:/root/"
+$envFile = Join-Path $env:TEMP 'smartai.env'
+$envLines = @("DOMAIN=$Domain")
+if ($AdminToken) { $envLines += "ADMIN_TOKEN=$AdminToken" }
+if ($DeepseekKey) { $envLines += "DEEPSEEK_API_KEY=$DeepseekKey" }
+[IO.File]::WriteAllText(
+  $envFile,
+  (($envLines -join "`n") + "`n"),
+  (New-Object System.Text.UTF8Encoding($false))
+)
+
+Write-Host "==> Uploading package, bootstrap and environment to ${User}@${Server}"
+$remoteBase = '/root'
+if ($Sudo -or $User -ne 'root') { $remoteBase = "/home/$User" }
+& scp @scpOpts $zip (Join-Path $deployDir 'bootstrap.sh') $envFile "${User}@${Server}:${remoteBase}/"
 if ($LASTEXITCODE -ne 0) { throw 'scp failed' }
 
 Write-Host '==> Running bootstrap on the server (5-10 minutes)'
-$remote = "DOMAIN='$Domain' bash /root/bootstrap.sh /root/smartai-src.zip"
+$remote = "DOMAIN='$Domain' bash ${remoteBase}/bootstrap.sh ${remoteBase}/smartai-src.zip"
+if ($Sudo -or $User -ne 'root') {
+  # Cloud images (Oracle, AWS, GCP) disallow root login; bootstrap needs root for
+  # apt/ufw/docker, so escalate with sudo and point it at the uploaded env file.
+  $remote = "sudo env SMART_AI_ENV_FILE='${remoteBase}/smartai.env' DOMAIN='$Domain' bash ${remoteBase}/bootstrap.sh ${remoteBase}/smartai-src.zip"
+}
 & ssh @sshOpts "${User}@${Server}" $remote
 if ($LASTEXITCODE -ne 0) { throw 'remote bootstrap failed' }
 

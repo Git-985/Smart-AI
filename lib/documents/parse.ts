@@ -13,6 +13,7 @@ export type ParsedDocument = {
   text: string;
   ocrUsed?: boolean;
   ocrConfidence?: number;
+  ocrPages?: number;
 };
 
 export class DocumentParseError extends Error {
@@ -75,6 +76,49 @@ async function ocrImage(buffer: Buffer): Promise<{ text: string; confidence: num
   return { text: result.data.text, confidence: Math.round(result.data.confidence) };
 }
 
+/** PDF 页码分隔符不算正文：只统计真正的字符，用于判断是不是扫描件。 */
+function meaningfulLength(value: string): number {
+  return value
+    .replace(/[—\-–\s]*\d+\s*(?:of|\/)\s*\d+[—\-–\s]*/g, "")
+    .replace(/\s+/g, "")
+    .length;
+}
+
+type PdfParser = {
+  getScreenshot: (params: {
+    partial: number[];
+    scale?: number;
+    imageBuffer?: boolean;
+    imageDataUrl?: boolean;
+  }) => Promise<{ pages: Array<{ data: Uint8Array; pageNumber: number }> }>;
+};
+
+const OCR_PAGE_LIMIT = 3;
+
+/**
+ * 扫描件 PDF 没有文字层，只有图片：把页面渲染成图片再做 OCR。
+ * 只处理前几页，避免一次请求跑太久；超出部分在报告里提示人工核对。
+ */
+async function ocrPdfPages(parser: PdfParser, totalPages: number): Promise<{ text: string; confidence: number; pages: number }> {
+  const limit = Math.min(totalPages, OCR_PAGE_LIMIT);
+  const partial = Array.from({ length: limit }, (_, index) => index + 1);
+  const shots = await parser.getScreenshot({ partial, scale: 2, imageBuffer: true, imageDataUrl: false });
+  let text = "";
+  let confidenceSum = 0;
+  let counted = 0;
+  for (const page of shots.pages) {
+    try {
+      const ocr = await ocrImage(Buffer.from(page.data));
+      text += `\n— ${page.pageNumber} of ${totalPages} —\n${ocr.text}`;
+      confidenceSum += ocr.confidence;
+      counted += 1;
+    } catch {
+      // 单页识别失败不影响其他页，报告里会体现文字为空。
+    }
+  }
+  return { text, confidence: counted ? Math.round(confidenceSum / counted) : 0, pages: limit };
+}
+
 function decodeText(buffer: Buffer): string {
   const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
   const replacementCount = (utf8.match(/\uFFFD/g) ?? []).length;
@@ -113,6 +157,7 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
   let pages: number | undefined;
   let ocrUsed = false;
   let ocrConfidence: number | undefined;
+  let ocrPages: number | undefined;
 
   try {
     if (isImage) {
@@ -121,6 +166,7 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
       pages = 1;
       ocrUsed = true;
       ocrConfidence = ocr.confidence;
+      ocrPages = 1;
     } else if (isPdf) {
       const { PDFParse } = await import("pdf-parse");
       const parser = new PDFParse({ data: new Uint8Array(buffer) });
@@ -128,6 +174,16 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
         const result = await parser.getText();
         text = result.text;
         pages = result.total;
+        // 文字层几乎为空时按扫描件处理：渲染页面再 OCR，否则用户只能看到页码。
+        if (meaningfulLength(text) < 30 && pages > 0) {
+          const ocr = await ocrPdfPages(parser as unknown as PdfParser, pages);
+          if (meaningfulLength(ocr.text) > 0) {
+            text = ocr.text;
+            ocrUsed = true;
+            ocrConfidence = ocr.confidence;
+            ocrPages = ocr.pages;
+          }
+        }
       } finally {
         await parser.destroy().catch(() => undefined);
       }
@@ -154,10 +210,10 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
   }
 
   const normalized = normalizeText(text);
-  if (!normalized) {
+  if (!normalized || meaningfulLength(normalized) < 2) {
     throw new DocumentParseError(
       "NO_TEXT",
-      "没有提取到可读文本，请检查文件是否清晰完整。",
+      "没有提取到可读文字，可能是纯图片或加密文件。可改为上传页面截图（JPG/PNG），系统会做文字识别。",
       422,
     );
   }
@@ -175,5 +231,6 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
     text: truncated ? normalized.slice(0, MAX_TEXT_LENGTH) : normalized,
     ocrUsed,
     ocrConfidence,
+    ocrPages,
   };
 }

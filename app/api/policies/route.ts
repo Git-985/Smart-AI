@@ -18,10 +18,22 @@ const policySchema = z.object({
   applicabilityReason: z.string().trim().min(4).max(500),
 });
 
-function authorized(request: Request) {
+/**
+ * 政策库默认只读：本地知识库不允许在界面或匿名接口里被修改。
+ * 需要维护时，先在服务端配置 ADMIN_TOKEN，再带口令调用接口。
+ */
+function writeGuard(request: Request): NextResponse | null {
   const expected = process.env.ADMIN_TOKEN?.trim();
-  if (!expected) return true;
-  return request.headers.get("x-admin-token") === expected;
+  if (!expected) {
+    return NextResponse.json(
+      { error: "POLICY_READONLY", message: "政策资料库默认只读，如需更新请在服务端配置 ADMIN_TOKEN。" },
+      { status: 403 },
+    );
+  }
+  if (request.headers.get("x-admin-token") !== expected) {
+    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  }
+  return null;
 }
 
 export async function GET() {
@@ -29,7 +41,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  const denied = writeGuard(request);
+  if (denied) return denied;
   const body: unknown = await request.json().catch(() => null);
   const parsed = policySchema.safeParse(body);
   if (!parsed.success) {
@@ -53,7 +66,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  const denied = writeGuard(request);
+  if (denied) return denied;
   const id = new URL(request.url).searchParams.get("id")?.trim();
   if (!id) return NextResponse.json({ error: "MISSING_ID" }, { status: 400 });
   return NextResponse.json({ deleted: deletePolicy(id) });

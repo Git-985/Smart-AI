@@ -1,5 +1,6 @@
 import type { PolicyEvidence } from "@/lib/rag/types";
 import type { DeepSeekAnalysis } from "@/lib/ai/deepseek";
+import type { Guidance } from "@/lib/ai/guidance";
 import { maskSensitiveText } from "@/lib/security/pii";
 import { randomUUID } from "node:crypto";
 import { deleteTask, findTask, purgeExpiredTasks, saveTask, type StoredTask } from "@/lib/store";
@@ -21,6 +22,7 @@ export type DemoTask = {
   year?: string;
   analysisSource?: "deepseek" | "rules";
   aiSummary?: string;
+  guidance?: Guidance | null;
 };
 
 function toTask(row: StoredTask): DemoTask {
@@ -41,6 +43,7 @@ function toTask(row: StoredTask): DemoTask {
     year: row.year ?? undefined,
     analysisSource: row.analysisSource,
     aiSummary: row.aiSummary ?? undefined,
+    guidance: row.guidance ?? null,
   };
 }
 
@@ -57,14 +60,15 @@ export function riskForServiceType(serviceType: DemoTask["serviceType"]): DemoTa
 }
 
 export function createDemoTask(
-  input: { message: string; region?: string; year?: string },
+  input: { message: string; region?: string; year?: string; serviceType?: DemoTask["serviceType"] },
   owner?: string,
   analysis?: DeepSeekAnalysis,
 ): DemoTask {
   purgeExpiredTasks();
   const id = `demo_${randomUUID()}`;
   const safeMessage = maskSensitiveText(input.message);
-  const serviceType = analysis?.serviceType ?? inferServiceType(safeMessage);
+  // 用户从某个模块进入时，事项类型以入口为准，确保检索走对应的政策库。
+  const serviceType = input.serviceType ?? analysis?.serviceType ?? inferServiceType(safeMessage);
   const hasRegion = Boolean(input.region?.trim());
   const missingFields = serviceType === "unknown"
     ? ["具体想办理的事项"]
@@ -89,6 +93,7 @@ export function createDemoTask(
     year: input.year,
     analysisSource: analysis ? "deepseek" : "rules",
     aiSummary: analysis?.summary,
+    guidance: null,
   };
   saveTask({ ...toStored(task, owner ?? null) });
   return task;
@@ -113,6 +118,7 @@ function toStored(task: DemoTask, owner: string | null): StoredTask {
     year: task.year ?? null,
     analysisSource: task.analysisSource ?? "rules",
     aiSummary: task.aiSummary ?? null,
+    guidance: task.guidance ?? null,
   };
 }
 

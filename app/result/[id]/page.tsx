@@ -23,6 +23,6 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
       <h2>需要准备什么</h2><ul>{materials.map((item) => <li key={item}>{item}</li>)}</ul><p className="notice">材料清单为常见项，具体以当地官方窗口或学校资助中心要求为准。</p>
       <h2>为什么这样判断</h2>{task.evidence.length ? task.evidence.map(item => <article className="evidence-card" key={item.policyId}><div className="evidence-title">{item.title}</div><p>{item.quote}</p><small>{item.region ?? "全国"} · {item.applicabilityReason}</small><a href={item.sourceUrl} target="_blank" rel="noreferrer">查看来源</a></article>) : <p>没有适用政策证据，不能形成确定性判断。</p>}
       <h2>需要注意什么</h2><p>办理资格、缴费或权益事项前请向官方部门确认。办理范围知情确认：{task.userConfirmed ? "已记录" : "尚未记录"}。</p>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><PrintButton /><Link className="small-action" href={`/family/${id}`}>家属协助清单</Link></div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><PrintButton /></div>
     </section></main>;
 }

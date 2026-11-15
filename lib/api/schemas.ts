@@ -4,6 +4,7 @@ export const taskCreateSchema = z.object({
   message: z.string().trim().min(1).max(2000),
   region: z.string().trim().max(100).optional(),
   year: z.string().regex(/^\d{4}$/).optional(),
+  serviceType: z.enum(["medical_insurance", "student_aid", "elderly_disability_service"]).optional(),
 });
 
 export const chatRequestSchema = z.object({
@@ -11,6 +12,14 @@ export const chatRequestSchema = z.object({
   region: z.string().trim().min(1).max(100).optional(),
   year: z.string().regex(/^\d{4}$/).optional(),
   clarification: z.string().trim().min(1).max(1000).optional(),
+  answers: z.array(z.object({
+    question: z.string().trim().min(1).max(200),
+    answer: z.string().trim().min(1).max(300),
+  })).max(8).optional(),
+  followUp: z.object({
+    kind: z.enum(["question", "other"]),
+    text: z.string().trim().min(1).max(500),
+  }).optional(),
 });
 
 export const documentMetadataSchema = z.object({

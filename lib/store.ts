@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import type { PolicyEvidence } from "@/lib/rag/types";
+import type { Guidance } from "@/lib/ai/guidance";
 import { seedPolicies } from "@/lib/policies/seed";
 
 export type StoredTask = {
@@ -22,6 +23,7 @@ export type StoredTask = {
   year: string | null;
   analysisSource: "deepseek" | "rules";
   aiSummary: string | null;
+  guidance: Guidance | null;
 };
 
 type DbGlobal = typeof globalThis & { smartAiDb?: DatabaseSync };
@@ -53,7 +55,8 @@ function migrate(db: DatabaseSync) {
       region TEXT,
       year TEXT,
       analysis_source TEXT NOT NULL DEFAULT 'rules',
-      ai_summary TEXT
+      ai_summary TEXT,
+      guidance TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner);
     CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
@@ -81,34 +84,38 @@ function migrate(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS idx_audit_task ON audit_events(task_id);
   `);
 
-  const count = db.prepare("SELECT COUNT(*) AS count FROM policies").get() as { count: number };
-  if (!count.count) {
-    const insert = db.prepare(`
-      INSERT INTO policies (policy_id, title, service_type, region, effective_at, expired_at, quote, source_url, section, relevance, applicability_reason)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    db.exec("BEGIN");
-    try {
-      for (const policy of seedPolicies) {
-        insert.run(
-          policy.policyId,
-          policy.title,
-          policy.serviceType,
-          policy.region,
-          policy.effectiveAt,
-          policy.expiredAt,
-          policy.quote,
-          policy.sourceUrl,
-          policy.section ?? null,
-          policy.relevance,
-          policy.applicabilityReason,
-        );
-      }
-      db.exec("COMMIT");
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
+  // 旧库升级：已有 .data/smart-ai.sqlite 里没有 guidance 列，按需补列，不动历史数据。
+  const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name?: unknown }>;
+  if (!taskColumns.some((column) => String(column.name) === "guidance")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN guidance TEXT");
+  }
+
+  // 内置条目按 policy_id 增量入库：新增条目自动补齐，已有条目（含管理员改动）不会被覆盖。
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO policies (policy_id, title, service_type, region, effective_at, expired_at, quote, source_url, section, relevance, applicability_reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const policy of seedPolicies) {
+      insert.run(
+        policy.policyId,
+        policy.title,
+        policy.serviceType,
+        policy.region,
+        policy.effectiveAt,
+        policy.expiredAt,
+        policy.quote,
+        policy.sourceUrl,
+        policy.section ?? null,
+        policy.relevance,
+        policy.applicabilityReason,
+      );
     }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
   }
 }
 
@@ -150,20 +157,21 @@ function rowToTask(row: Record<string, unknown>): StoredTask {
     year: row.year ? String(row.year) : null,
     analysisSource: row.analysis_source === "deepseek" ? "deepseek" : "rules",
     aiSummary: row.ai_summary ? String(row.ai_summary) : null,
+    guidance: parseJson<Guidance | null>(row.guidance ? String(row.guidance) : null, null),
   };
 }
 
 export function saveTask(task: StoredTask) {
   getDb().prepare(`
-    INSERT INTO tasks (id, owner, message, service_type, title, status, risk_level, missing_fields, known_facts, evidence, plan, created_at, user_confirmed, region, year, analysis_source, ai_summary)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (id, owner, message, service_type, title, status, risk_level, missing_fields, known_facts, evidence, plan, created_at, user_confirmed, region, year, analysis_source, ai_summary, guidance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       owner=excluded.owner, message=excluded.message, service_type=excluded.service_type,
       title=excluded.title, status=excluded.status, risk_level=excluded.risk_level,
       missing_fields=excluded.missing_fields, known_facts=excluded.known_facts,
       evidence=excluded.evidence, plan=excluded.plan, user_confirmed=excluded.user_confirmed,
       region=excluded.region, year=excluded.year, analysis_source=excluded.analysis_source,
-      ai_summary=excluded.ai_summary, created_at=excluded.created_at
+      ai_summary=excluded.ai_summary, guidance=excluded.guidance, created_at=excluded.created_at
   `).run(
     task.id,
     task.owner,
@@ -182,6 +190,7 @@ export function saveTask(task: StoredTask) {
     task.year,
     task.analysisSource,
     task.aiSummary,
+    task.guidance ? JSON.stringify(task.guidance) : null,
   );
   return task;
 }
